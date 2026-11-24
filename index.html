@@ -146,6 +146,14 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
 .recap td{white-space:normal;vertical-align:top;text-align:left;font:13.5px "IBM Plex Sans",sans-serif}
 .recap td.mv{white-space:nowrap;font-family:"IBM Plex Mono",monospace}
 h3{font-size:16px;font-weight:600}
+#guide{width:min(820px,calc(100vw - 24px))}
+.guide{gap:10px}
+.guide h3{margin-top:8px;color:#cfe0ff}
+.guide p,.guide li{margin:0;font-size:14.5px;line-height:1.55}
+.guide ul,.guide ol{margin:0;padding-left:20px;display:grid;gap:4px}
+.guide td{font-family:"IBM Plex Sans",sans-serif;white-space:normal}
+.guide th,.guide td{text-align:left}
+.guide td:nth-child(2){white-space:nowrap}
 [hidden]{display:none!important}
 @media(max-width:1050px){main{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:600px){.bar h1{flex-basis:100%}.form{grid-template-columns:minmax(0,1fr)}.sbr{grid-template-columns:7em minmax(0,1fr) 4.5em}.wire{flex-wrap:wrap;gap:2px 8px}.recap thead{display:none}.recap tr{display:grid;padding-block:6px;border-bottom:1px solid var(--ln)}.recap td{border:0;padding:2px 0}.k{flex-basis:8em}}
@@ -158,6 +166,7 @@ h3{font-size:16px;font-weight:600}
   <span class="chip" id="codeChip">—</span>
   <span class="clock" id="clock">Pre-open</span>
   <button class="pri" id="play">Start trading</button>
+  <button id="guideBtn">How it works</button>
   <button id="newRun">New run</button>
 </header>
 <div class="wire" id="wire" aria-live="polite"><b>NEWS</b><span id="wireTxt">Set up a run to open the desk.</span></div>
@@ -239,8 +248,107 @@ h3{font-size:16px;font-weight:600}
       <li>Score (1,000): Performance 300 · Risk 200 · Discipline 200 · News response 150 · Resilience 75 · Trade management 75, each also shown as a percentage.</li>
     </ol>
     <p class="msg err" id="setupErr"></p>
-    <div class="acts"><button type="button" id="cancelSetup">Cancel</button><button class="pri" id="go">Open market</button></div>
+    <div class="acts"><button type="button" id="setupGuide" style="margin-right:auto">How it works</button><button type="button" id="cancelSetup">Cancel</button><button class="pri" id="go">Open market</button></div>
   </form>
+</dialog>
+
+<dialog id="guide" aria-labelledby="gTitle">
+  <div class="dh"><h2 id="gTitle" tabindex="-1">How the simulation works</h2><p>Read this once before your first run. It takes about three minutes.</p></div>
+  <div class="db guide">
+    <h3>Your role and goal</h3>
+    <p>You are a portfolio manager at a private bank running a <b>$20M multi-asset portfolio</b> for a balanced client. Your goal is to <b>beat the benchmark</b> while staying inside the client's investment limits and meeting their requests on time.</p>
+
+    <h3>Timeframe</h3>
+    <p>One run is <b>one simulated year, January to December</b>: 48 trading weeks. The clock in the top bar shows the week, month and weekday, e.g. <span class="mono">Wk 9 · Mar · Wed</span>. Prices update about 8 times per trading day. You choose how fast the year passes when you open the desk:</p>
+    <div class="scroll"><table><thead><tr><th>Pace</th><th>Whole year</th><th>One week</th><th>A major headline about every</th></tr></thead><tbody>
+      <tr><td>Drill</td><td>5 min</td><td>~6 s</td><td>30 s</td></tr>
+      <tr><td>Quick</td><td>10 min</td><td>~12 s</td><td>1 min</td></tr>
+      <tr><td>Standard</td><td>20 min</td><td>25 s</td><td>2 min</td></tr>
+      <tr><td>Full length</td><td>60 min</td><td>75 s</td><td>5–6 min</td></tr>
+    </tbody></table></div>
+    <p class="note" style="padding:0">Full length matches the AmplifyME style of compressing 12 months of markets into about one hour.</p>
+
+    <h3>How a run goes</h3>
+    <ol class="steps">
+      <li><b>Pre-open.</b> The clock is stopped. Read the <b>Research</b> notes in the News panel, then build your starting allocation from 100% cash. Using <b>Fill benchmark</b> then <b>Rebalance to targets</b> is a sensible start; tilt from there.</li>
+      <li><b>Start trading.</b> Prices move continuously. Watch the <b>vs Bmk</b> column: <span class="up">OW</span> means overweight, <span class="dn">UW</span> means underweight against the benchmark.</li>
+      <li><b>Headlines hit.</b> Numbered headlines move prices the moment they appear, and the same number is pinned on the chart where it hit.</li>
+      <li><b>Client requests arrive.</b> Three per year, each with a deadline week. They show in the Mandate and limits panel with a countdown.</li>
+      <li><b>Year end.</b> You get a score out of 1,000 and a recap of every headline: what moved the following week, whether your team reacted the right way, and the lesson.</li>
+    </ol>
+
+    <h3>Why the news feels spaced out</h3>
+    <p>Each scenario has about <b>10–11 major headlines across the whole year</b>, roughly one a month, so each one has a clear, learnable price reaction. Between them, prices move with normal market noise and any drift a headline set off (a central bank shock can keep pushing yields for a few weeks). Other items in the feed do <b>not</b> move prices:</p>
+    <ul>
+      <li><b>Research</b>: the pre-open regional views.</li>
+      <li><b>Market wrap</b>: a monthly summary of returns, yields, gold, oil and EUR/USD.</li>
+      <li><b>Client request</b>: a new mandate with a deadline.</li>
+      <li><b>Compliance</b>: a limit you broke at the weekly close.</li>
+    </ul>
+    <p>Quiet stretches are the time to check your weights against the limits, prepare for upcoming calendar events (the Economic calendar shows the consensus before each release), and get ready for client deadlines.</p>
+
+    <h3>Instruments and benchmark</h3>
+    <div class="scroll"><table><thead><tr><th>Instrument</th><th>Benchmark</th><th>Mainly driven by</th></tr></thead><tbody>
+      <tr><td>US Large Cap Index</td><td>25%</td><td>US growth, risk sentiment</td></tr>
+      <tr><td>Europe Equities</td><td>10%</td><td>Global growth, energy prices, China demand</td></tr>
+      <tr><td>HK &amp; China Equities</td><td>10%</td><td>China policy and data, USD</td></tr>
+      <tr><td>Global Tech Index</td><td>10%</td><td>Interest rates (very sensitive), earnings, sentiment</td></tr>
+      <tr><td>US 10Y Treasury</td><td>15%</td><td>Rates and inflation; rallies in a flight to safety</td></tr>
+      <tr><td>German 10Y Bund</td><td>10%</td><td>Global rates; a safe haven</td></tr>
+      <tr><td>Investment Grade Credit</td><td>10%</td><td>Rates, plus some credit risk</td></tr>
+      <tr><td>High Yield Credit</td><td>0%</td><td>Risk sentiment and growth; hit hard in credit stress</td></tr>
+      <tr><td>Gold</td><td>5%</td><td>Inflation, falling real yields, weaker USD, fear</td></tr>
+      <tr><td>Crude Oil</td><td>0%</td><td>Supply shocks, OPEC+, China demand</td></tr>
+      <tr><td>EUR / USD</td><td>0%</td><td>USD strength and rate differentials</td></tr>
+      <tr><td>Cash</td><td>5%</td><td>Earns 4% a year</td></tr>
+    </tbody></table></div>
+    <p>Bonds show a yield under their name: when the yield rises, the bond price falls.</p>
+
+    <h3>Limits and client requests</h3>
+    <p>These limits are checked at <b>every weekly close</b>. Each limit broken that week counts as one breach-week.</p>
+    <ul>
+      <li>Equities (US, Europe, HK, Tech) between 25% and 70%</li>
+      <li>No single instrument above 35%</li>
+      <li>Crude Oil plus High Yield at most 20%</li>
+      <li>Cash at least 1%</li>
+    </ul>
+    <p>Client requests are things like raising cash for a withdrawal, cutting equities, exiting oil, holding more bonds or gold, or investing new money. If you miss a deadline it counts as missed. A rule-type request then stays in force and is checked every week. An unfunded withdrawal forces a sale with a 1% penalty.</p>
+
+    <h3>Trading</h3>
+    <ul>
+      <li><b>Order ticket:</b> click a row, choose BUY or SELL, type an amount (e.g. <span class="mono">750k</span> or <span class="mono">1.2m</span>), then Transmit. The 1%, 5% and 10% buttons fill a share of the portfolio's value.</li>
+      <li><b>B / S on each row</b> trade the ticket amount in that instrument instantly, which is fastest when news hits.</li>
+      <li><b>Rebalance:</b> type target weights in Tgt %, then Rebalance to targets. A blank target counts as 0%.</li>
+      <li><b>Costs:</b> you buy at the ask and sell at the bid; spreads run from 1 to 10 basis points depending on the instrument. Short selling and leverage are not allowed.</li>
+      <li><b>Oversized orders:</b> a single ticket over 25% of the portfolio counts as a fat-finger error. Rebalances and closing a position don't count.</li>
+    </ul>
+
+    <h3>Scoring (out of 1,000)</h3>
+    <div class="scroll"><table><thead><tr><th>Metric</th><th>Points</th><th>What earns it</th></tr></thead><tbody>
+      <tr><td>Performance</td><td>300</td><td>Alpha: your return minus the benchmark's</td></tr>
+      <tr><td>Risk management</td><td>200</td><td>Sharpe ratio versus the benchmark, and a small max drawdown</td></tr>
+      <tr><td>Discipline</td><td>200</td><td>Few breach-weeks and no missed client requests</td></tr>
+      <tr><td>News response</td><td>150</td><td>Trading the right direction within about 20 seconds of each market-moving headline</td></tr>
+      <tr><td>Resilience</td><td>75</td><td>How much of your worst drawdown you won back</td></tr>
+      <tr><td>Trade management</td><td>75</td><td>Low trading costs and no oversized orders</td></tr>
+    </tbody></table></div>
+    <p class="note" style="padding:0">These weights are an informed guess based on AmplifyME's published metric names, not the official competition formula.</p>
+
+    <h3>Team rooms</h3>
+    <ul>
+      <li><b>Host a team room:</b> the host's screen runs the market clock. Share the room code shown in the top bar.</li>
+      <li><b>Join a team room:</b> enter the host's code. Everyone sees the same prices, news and one shared portfolio.</li>
+      <li>Anyone can trade, rebalance, pause or resume. Every action appears in Team activity with the person's name.</li>
+      <li>If the host leaves, a <b>Take over as host</b> button appears and the run continues from your screen.</li>
+      <li>The same market code always produces the same market, so you can replay a scenario and compare scores.</li>
+    </ul>
+    <p><b>Suggested roles:</b> the News analyst reads headlines aloud and calls the direction; the Trader executes; Risk &amp; compliance watches limits and client deadlines; the Captain makes the final call.</p>
+
+    <h3>Keyboard shortcuts</h3>
+    <p><span class="mono">Space</span> pause or resume · <span class="mono">B</span> / <span class="mono">S</span> switch the ticket to buy or sell · <span class="mono">Enter</span> in the amount box transmits the order.</p>
+
+    <div class="acts"><button class="pri" id="guideClose">Got it</button></div>
+  </div>
 </dialog>
 
 <dialog id="report"><div class="dh"><h2 id="rTitle">Run complete</h2><p id="rSub"></p></div><div class="db" id="rBody"></div></dialog>
@@ -791,6 +899,7 @@ $('setupF').onsubmit=async e=>{
 setMode('host');
 
 $('play').onclick=play;
+const openGuide=()=>{try{$('guide').showModal()}catch(e){$('guide').setAttribute('open','')}$('gTitle').focus();$('guide').scrollTop=0};$('guideBtn').onclick=openGuide;$('setupGuide').onclick=openGuide;$('guideClose').onclick=()=>$('guide').close();
 $('newRun').onclick=()=>{if(MODE==='follow'){setMode('join');}openSetup(true)};
 document.addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||document.querySelector('dialog[open]'))return;
  if(e.code==='Space'&&e.target.tagName!=='BUTTON'){e.preventDefault();play()}else if(e.key==='b'||e.key==='B')setSide(1);else if(e.key==='s'||e.key==='S')setSide(-1)});
