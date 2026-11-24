@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wealth Desk Simulator</title>
+<meta name="description" content="Practice simulator for live multi-asset portfolio and wealth-management competitions: synced team rooms, breaking news, client mandates and scoring.">
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script src="live-sync.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE work: a broker's trading workstation, dense, dark, every number aligned
+   IDEA a pro trading terminal: tool bar, account strip, windowed panels with title bars, bid/ask blotter, order ticket
+   PICTURE the live portfolio-vs-benchmark chart with numbered headlines pinned where they hit
+   COLOUR charcoal ground, graphite panels, one signal blue, bid blue / ask red, green and red only for P&L
+   TYPE IBM Plex Sans for labels, IBM Plex Mono for every figure
+   LAYOUT laptop: tool bar, wire, account strip, chart + blotter + ticket left, team/news/limits/calendar right; phone: same order stacked */
+:root{color-scheme:dark;--bg:#0c0e11;--pn:#14171c;--tb:#1c2027;--ln:#2a2f38;--ink:#dde1e8;--mut:#8b94a5;--bl:#3b8cff;--bid:#62aefc;--ask:#ff7a7a;--up:#2fc27a;--dn:#f0525a;--hi:#1b2a44;--bench:#7d8597}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 "IBM Plex Sans",system-ui,sans-serif;overflow-x:clip}
+.n,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+h1,h2,h3{margin:0;letter-spacing:-.01em}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;min-height:36px;padding:0 12px;border-radius:4px;border:1px solid var(--ln);background:var(--tb);font-weight:600}
+button:hover{border-color:var(--bl)}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--bl);outline-offset:1px}
+button.pri{background:var(--bl);border-color:var(--bl);color:#fff}
+button.buy{background:#123a6b;border-color:#2a64ad;color:#cfe4ff}
+button.sell{background:#5a1c22;border-color:#a3343e;color:#ffd6d8}
+input,select{font-size:16px;min-height:36px;padding:4px 8px;border:1px solid var(--ln);border-radius:4px;background:#0a0c0f}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:8px max(1.5vw,16px);background:var(--tb);border-bottom:1px solid var(--ln)}
+.bar h1{font-size:18px;font-weight:700;margin-right:auto;white-space:nowrap}
+.bar h1 i{font-style:normal;color:var(--bl)}
+.chip{font:500 13px "IBM Plex Mono",monospace;border:1px solid var(--ln);background:var(--bg);padding:3px 8px;border-radius:4px;white-space:nowrap}
+.chip.room{border-color:var(--bl);color:#cfe0ff}
+.clock{font:600 16px "IBM Plex Mono",monospace;white-space:nowrap}
+.wire{display:flex;gap:10px;align-items:baseline;padding:7px max(1.5vw,16px);border-bottom:1px solid var(--ln);background:#101318}
+.wire b{font:600 13px "IBM Plex Mono",monospace;color:var(--ask);white-space:nowrap}
+.wire span{font-weight:600}
+.wire.flash{animation:fl 1.4s ease-out}
+@keyframes fl{from{background:var(--hi)}to{background:#101318}}
+@media (prefers-reduced-motion:reduce){.wire.flash,.nw.new{animation:none}}
+.acct{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--ln);background:var(--pn)}
+.k{flex:1 1 9.5em;padding:7px 14px;border-right:1px solid var(--ln)}
+.k small{display:block;color:var(--mut);font-size:13px}
+.k .n{font-size:clamp(17px,1.7vw,21px);font-weight:600;white-space:nowrap}
+.k em{font-style:normal;font-size:13px;color:var(--mut)}
+.up{color:var(--up)}.dn{color:var(--dn)}
+main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,370px);gap:10px;padding:10px max(1.5vw,16px) 32px}
+.col{display:grid;gap:10px;align-content:start}
+.win{border:1px solid var(--ln);border-radius:6px;background:var(--pn);overflow:hidden}
+.wt{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 10px;background:var(--tb);border-bottom:1px solid var(--ln);min-height:38px}
+.wt h2{font-size:14px;font-weight:600;margin-right:auto}
+.wt .hint{font-size:13px;color:var(--mut)}
+.seg{display:flex;border:1px solid var(--ln);border-radius:4px;overflow:hidden}
+.seg button{border:0;border-radius:0;min-height:30px;font-size:13px;background:transparent;padding:0 10px}
+.seg button[aria-pressed=true]{background:var(--bl);color:#fff}
+.fig{position:relative;height:clamp(230px,30vw,330px)}
+.fig>canvas{position:absolute;inset:0;width:100%;height:100%}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{padding:5px 8px;border-bottom:1px solid var(--ln);text-align:right;white-space:nowrap}
+th{font-size:13px;color:var(--mut);font-weight:500;background:#111419}
+th:first-child,td:first-child{text-align:left}
+td{font-family:"IBM Plex Mono",monospace;font-size:13.5px}
+td:first-child{font-family:"IBM Plex Sans",sans-serif}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:#181c23}
+tbody tr.sel{background:var(--hi)}
+.an{font-weight:600;font-size:14px}
+.as{display:block;font-size:13px;color:var(--mut)}
+td.bid{color:var(--bid)}td.ask{color:var(--ask)}
+td input{width:4.8em;text-align:right;min-height:30px;padding:2px 6px;font:14px "IBM Plex Mono",monospace}
+td button{min-height:30px;padding:0 9px;font-size:13px}
+tfoot td{background:#111419}
+.ticket{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:end;padding:10px;border-top:1px solid var(--ln);background:#11141a}
+.ticket label{display:grid;font-size:13px;color:var(--mut);gap:2px}
+.ticket .amt{width:9.5em;font-family:"IBM Plex Mono",monospace}
+.side{display:flex;border:1px solid var(--ln);border-radius:4px;overflow:hidden}
+.side button{border:0;border-radius:0;min-height:36px;background:transparent;padding:0 14px}
+.side button.on.b{background:#1f5fae;color:#fff}
+.side button.on.s{background:#b23440;color:#fff}
+.chips{display:flex;gap:4px;flex-wrap:wrap}
+.chips button{min-height:36px;padding:0 9px;font-size:13px}
+#tx{min-width:9em}
+#tx.b{background:#1f5fae;border-color:#1f5fae;color:#fff}
+#tx.s{background:#b23440;border-color:#b23440;color:#fff}
+.msg{flex-basis:100%;font-size:13.5px;min-height:1.4em;color:var(--mut)}
+.msg.err{color:var(--dn)}
+.rebal{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 10px;font-size:13.5px;border-top:1px solid var(--ln)}
+.rebal span{margin-right:auto}
+.list{list-style:none;margin:0;padding:0}
+.news{max-height:400px;overflow-y:auto}
+.nw{padding:8px 10px;border-bottom:1px solid var(--ln)}
+.nw.new{animation:fl 2s ease-out}
+.nm{display:flex;gap:7px;align-items:center;font-size:13px;color:var(--mut)}
+.num{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:3px;background:var(--bl);color:#fff;font:600 12px "IBM Plex Mono",monospace;padding:0 3px}
+.tag{font-weight:600;color:var(--ink)}
+.nw b{display:block;margin-top:2px;line-height:1.35;font-size:14px}
+.nw p{margin:2px 0 0;font-size:13.5px;color:var(--mut)}
+.nw.desk .tag{color:var(--bid)}
+.nw.alert .tag{color:var(--dn)}
+.rows li{display:flex;gap:8px;align-items:baseline;padding:5px 10px;font-size:13.5px;border-bottom:1px solid #1d2128}
+.rows li:last-child{border-bottom:0}
+.rows .d{font:500 13px "IBM Plex Mono",monospace;color:var(--mut);min-width:2.6em}
+.rows .t{margin-right:auto}
+.rows .v{white-space:nowrap;font-family:"IBM Plex Mono",monospace}
+.dot{width:8px;height:8px;border-radius:4px;flex:none;align-self:center;background:var(--up)}
+.dot.bad{background:var(--dn)}.dot.wait{background:var(--bench)}
+.st{font-size:13px;font-weight:600;white-space:nowrap}
+.note{padding:6px 10px 10px;font-size:13px;color:var(--mut);margin:0}
+.team .you{color:var(--bid);font-size:13px}
+.team .host{font:600 12px "IBM Plex Mono",monospace;border:1px solid var(--bl);color:#cfe0ff;border-radius:3px;padding:0 4px}
+.team select{min-height:30px;font-size:14px;padding:2px 6px}
+.banner{display:none;padding:8px 10px;background:#3a1e12;border-bottom:1px solid #7a3d22;font-size:13.5px;gap:8px;align-items:center;flex-wrap:wrap}
+.banner.on{display:flex}
+.act li{font-size:13.5px}
+dialog{border:1px solid var(--ln);border-radius:8px;background:var(--pn);color:var(--ink);padding:0;width:min(720px,calc(100vw - 24px));max-height:calc(100vh - 24px)}
+dialog::backdrop{background:rgba(0,0,0,.65)}
+.dh{background:var(--tb);border-bottom:1px solid var(--ln);padding:14px 20px}
+.dh h2{font-size:24px}
+.dh p{margin:4px 0 0;color:var(--mut)}
+.db{padding:16px 20px;display:grid;gap:12px}
+.form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}
+.form label{display:grid;gap:3px;font-size:13.5px;font-weight:500}
+.form .full{grid-column:1/-1}
+.check{display:flex!important;gap:8px;align-items:center}
+.check input{min-height:auto;width:18px;height:18px}
+.how{margin:0;padding-left:18px;font-size:13.5px;color:var(--mut)}
+.how li{margin:2px 0}
+.acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.big{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}
+.big .n{font-size:clamp(44px,8vw,64px);font-weight:600;line-height:1}
+.sb{display:grid;gap:6px}
+.sbr{display:grid;grid-template-columns:9em minmax(0,1fr) 5.5em;gap:10px;align-items:center;font-size:13.5px}
+.sbr i{display:block;height:8px;border-radius:2px;background:#0a0c0f;overflow:hidden}
+.sbr i b{display:block;height:100%;background:var(--bl)}
+.sbr span:last-child{text-align:right;font-family:"IBM Plex Mono",monospace}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(8em,1fr));gap:6px}
+.stats div{background:#0f1216;border:1px solid var(--ln);border-radius:4px;padding:6px 9px;font-size:13px;color:var(--mut)}
+.stats b{display:block;font:600 17px "IBM Plex Mono",monospace;color:var(--ink);white-space:nowrap}
+.recap td{white-space:normal;vertical-align:top;text-align:left;font:13.5px "IBM Plex Sans",sans-serif}
+.recap td.mv{white-space:nowrap;font-family:"IBM Plex Mono",monospace}
+h3{font-size:16px;font-weight:600}
+[hidden]{display:none!important}
+@media(max-width:1050px){main{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){.bar h1{flex-basis:100%}.form{grid-template-columns:minmax(0,1fr)}.sbr{grid-template-columns:7em minmax(0,1fr) 4.5em}.wire{flex-wrap:wrap;gap:2px 8px}.recap thead{display:none}.recap tr{display:grid;padding-block:6px;border-bottom:1px solid var(--ln)}.recap td{border:0;padding:2px 0}.k{flex-basis:8em}}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>Wealth <i>Desk</i></h1>
+  <span class="chip room" id="roomChip" hidden></span>
+  <span class="chip" id="codeChip">—</span>
+  <span class="clock" id="clock">Pre-open</span>
+  <button class="pri" id="play">Start trading</button>
+  <button id="newRun">New run</button>
+</header>
+<div class="wire" id="wire" aria-live="polite"><b>NEWS</b><span id="wireTxt">Set up a run to open the desk.</span></div>
+<section class="acct" aria-label="Account">
+  <div class="k"><small>Net liquidation</small><div class="n" id="kNav">$10.00M</div><em id="kNavS">cash $10.00M</em></div>
+  <div class="k"><small>Return</small><div class="n" id="kRet">0.00%</div><em id="kRetS">benchmark 0.00%</em></div>
+  <div class="k"><small>Alpha</small><div class="n" id="kAlp">0.00%</div><em>vs benchmark</em></div>
+  <div class="k"><small>Volatility (ann.)</small><div class="n" id="kVol">—</div><em id="kSh">Sharpe —</em></div>
+  <div class="k"><small>Max drawdown</small><div class="n" id="kDD">0.00%</div><em id="kDDS">benchmark 0.00%</em></div>
+  <div class="k"><small>Compliance</small><div class="n" id="kCmp">Clean</div><em id="kCmpS">0 breach-weeks</em></div>
+  <div class="k"><small>Live score</small><div class="n" id="kSc">—</div><em>out of 1,000</em></div>
+</section>
+
+<main>
+  <div class="col">
+    <section class="win">
+      <div class="wt"><h2 id="chartTitle">Portfolio vs benchmark (start = 100)</h2>
+        <div class="seg" role="group" aria-label="Chart view"><button id="vPf" aria-pressed="true">Portfolio</button><button id="vAs" aria-pressed="false">Selected</button></div></div>
+      <div class="fig" id="fig"><canvas id="cv" aria-label="Chart of portfolio value against benchmark, with numbered news events"></canvas></div>
+    </section>
+    <section class="win">
+      <div class="wt"><h2>Portfolio blotter</h2><span class="hint">Click a row to load the ticket · B/S trade the ticket amount instantly</span></div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Instrument</th><th>Bid</th><th>Ask</th><th>Wk chg</th><th>Run</th><th>Position</th><th>Avg</th><th>Unrl P&amp;L</th><th>Wt</th><th>vs Bmk</th><th>Tgt %</th><th></th></tr></thead>
+          <tbody id="mktB"></tbody>
+          <tfoot><tr><td><span class="an">Cash USD</span><span class="as">earns 4.00% p.a.</span></td><td></td><td></td><td></td><td></td><td id="cashH"></td><td></td><td></td><td id="cashW"></td><td id="cashAB"></td><td id="cashT"></td><td></td></tr></tfoot>
+        </table>
+      </div>
+      <div class="ticket">
+        <div class="side" role="group" aria-label="Order side"><button id="sB" class="b on">BUY</button><button id="sS" class="s">SELL</button></div>
+        <label>Instrument<b id="tkName" style="color:var(--ink);font-size:15px">US Large Cap Index</b></label>
+        <label>Amount (USD)<input id="amt" class="amt" inputmode="decimal" value="500k" aria-describedby="tkEst"></label>
+        <label>Type<b style="color:var(--ink);font:600 15px 'IBM Plex Mono',monospace">MKT</b></label>
+        <div class="chips" aria-label="Amount presets"><button data-p="0.01">1%</button><button data-p="0.05">5%</button><button data-p="0.1">10%</button></div>
+        <button id="tx" class="b">Transmit buy</button><button id="closePos">Close position</button>
+        <span id="tkEst" style="font-size:13px;color:var(--mut)"></span>
+        <div class="msg" id="msg" aria-live="polite">Type amounts like 750k or 1.2m. Space pauses; B / S switch the ticket side.</div>
+      </div>
+      <div class="rebal"><span>Targets <b class="mono" id="tgSum">0%</b> · cash left <b class="mono" id="tgCash">100%</b> · blank = 0%</span>
+        <button id="fillB">Fill benchmark</button><button id="fillC">Fill current</button><button class="pri" id="rebal">Rebalance to targets</button></div>
+    </section>
+  </div>
+
+  <aside class="col">
+    <section class="win team" id="teamWin" hidden>
+      <div class="wt"><h2>Team room</h2><span class="hint" id="connTxt">Connecting…</span></div>
+      <div class="banner" id="hostGone"><span>The host has left. Someone needs to take over to keep the market running.</span><button class="pri" id="takeover">Take over as host</button></div>
+      <ul class="list rows" id="peers"></ul>
+      <div class="wt" style="border-top:1px solid var(--ln)"><h2>Team activity</h2></div>
+      <ul class="list rows act" id="activity"><li class="ph"><span class="t" style="color:var(--mut)">Trades by anyone on the team show here.</span></li></ul>
+    </section>
+    <section class="win"><div class="wt"><h2>News</h2><span class="hint" id="newsCount"></span></div><ol class="list news" id="news"></ol></section>
+    <section class="win"><div class="wt"><h2>Mandate and limits</h2></div><ul class="list rows" id="rules"></ul><p class="note" id="mNote"></p></section>
+    <section class="win"><div class="wt"><h2>Economic calendar</h2></div><ul class="list rows" id="cal"></ul></section>
+    <section class="win"><div class="wt"><h2>Leaderboard</h2><div class="seg" role="group" aria-label="Board filter"><button id="lbThis" aria-pressed="true">This market</button><button id="lbAll" aria-pressed="false">All</button></div></div><ul class="list rows" id="lb"></ul><p class="note" id="lbNote">Scores appear here after each finished run.</p></section>
+  </aside>
+</main>
+
+<dialog id="setup">
+  <div class="dh"><h2>Open the desk</h2><p>Manage a $20M multi-asset client portfolio against a benchmark through 12 months of live news, alone or as a synced team.</p></div>
+  <form class="db" id="setupF" method="dialog">
+    <div class="seg" role="group" aria-label="Mode" style="align-self:start"><button type="button" data-m="solo" aria-pressed="false">Solo</button><button type="button" data-m="host" aria-pressed="true">Host a team room</button><button type="button" data-m="join" aria-pressed="false">Join a team room</button></div>
+    <p class="note" id="modeNote" style="padding:0"></p>
+    <div class="form">
+      <label>Your name<input id="pname" maxlength="20" autocomplete="nickname" placeholder="e.g. Alex"></label>
+      <label data-for="team">Your role<select id="prole"><option>Captain</option><option>Trader</option><option>News analyst</option><option>Risk &amp; compliance</option></select></label>
+      <label data-for="join" class="full">Room code from your host<input id="jcode" maxlength="12" autocomplete="off" spellcheck="false" placeholder="e.g. INFL-482193"></label>
+      <label data-for="run">Scenario<select id="scen">
+        <option value="INFL">Sticky inflation</option><option value="CHN">China stimulus</option><option value="CRD">Credit scare</option><option value="OIL">Oil supply shock</option><option value="MIX">Surprise mix</option></select></label>
+      <label data-for="run">Market code<input id="code" maxlength="12" autocomplete="off" spellcheck="false"></label>
+      <label data-for="run">Pace<select id="speed">
+        <option value="6.25">Drill: 5 min year</option><option value="12.5">Quick: 10 min year</option><option value="25" selected>Standard: 20 min year</option><option value="75">Full length: 60 min year (AmplifyME-style)</option></select></label>
+      <label data-for="run" class="check full"><input type="checkbox" id="train"> Training mode: pause on every headline so the team can discuss</label>
+    </div>
+    <ol class="how">
+      <li><b>Team room:</b> the host runs the market clock; everyone in the room sees the same prices, news and one shared portfolio, and anyone can trade or pause.</li>
+      <li>The same <b>market code</b> always produces the identical market, so you can replay a scenario and compare scores.</li>
+      <li>Score (1,000): Performance 300 · Risk 200 · Discipline 200 · News response 150 · Resilience 75 · Trade management 75, each also shown as a percentage.</li>
+    </ol>
+    <p class="msg err" id="setupErr"></p>
+    <div class="acts"><button type="button" id="cancelSetup">Cancel</button><button class="pri" id="go">Open market</button></div>
+  </form>
+</dialog>
+
+<dialog id="report"><div class="dh"><h2 id="rTitle">Run complete</h2><p id="rSub"></p></div><div class="db" id="rBody"></div></dialog>
+
+<script>
+{
+const $=s=>document.getElementById(s);
+const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* one "period" is a trading week: 48 weeks = the 12 months AmplifyME-style sims compress into one session */
+const TPD=40,DAYS=48,T=DAYS*TPD,START=20e6,RF=.04,PPY=52,VS=2.24;
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const wkOf=t=>t===0?0:Math.min(DAYS,Math.floor((t-1)/TPD)+1);
+const F=['G','I','R','S','U','O','C'];
+const FV={G:.5,I:.25,R:.45,S:.7,U:.35,O:1.1,C:.7};
+const A=[
+ {k:'USEQ',n:'US Large Cap Index',c:'eq',p:5000,dp:2,b:{G:1,S:1,R:-.4,I:-.3,C:.15},iv:.35,dr:.04,tc:3},
+ {k:'EUEQ',n:'Europe Equities',c:'eq',p:4900,dp:2,b:{G:.8,S:.9,R:-.3,O:-.25,U:-.3,C:.3},iv:.45,dr:.035,tc:5},
+ {k:'HKEQ',n:'HK & China Equities',c:'eq',p:18500,dp:0,b:{G:.5,S:1,C:1.4,R:-.2,U:-.4},iv:.6,dr:.04,tc:8},
+ {k:'TECH',n:'Global Tech Index',c:'eq',p:3200,dp:2,b:{G:1.1,S:1.4,R:-1,I:-.3},iv:.6,dr:.05,tc:5},
+ {k:'UST',n:'US 10Y Treasury',c:'bd',p:100,dp:2,b:{R:-1,S:-.35,I:-.3,G:-.25},iv:.05,dr:.015,tc:2},
+ {k:'BUND',n:'German 10Y Bund',c:'bd',p:100,dp:2,b:{R:-.75,S:-.3,I:-.2,G:-.2},iv:.06,dr:.01,tc:2},
+ {k:'IGC',n:'Investment Grade Credit',c:'bd',p:100,dp:2,b:{R:-.7,S:.2,G:.15},iv:.08,dr:.018,tc:4},
+ {k:'HYC',n:'High Yield Credit',c:'bd',p:100,dp:2,b:{S:.5,G:.4,R:-.3},iv:.15,dr:.025,tc:10},
+ {k:'XAU',n:'Gold',c:'cm',p:2400,dp:1,b:{I:.6,S:-.45,U:-.6,R:-.4},iv:.6,dr:.01,tc:5},
+ {k:'WTI',n:'Crude Oil',c:'cm',p:78,dp:2,b:{O:1.5,G:.6,C:.5,I:.4,S:.2},iv:1,dr:0,tc:8},
+ {k:'EUR',n:'EUR / USD',c:'fx',p:1.085,dp:4,b:{U:-1},iv:.15,dr:0,tc:1}
+];
+const BW={USEQ:.25,EUEQ:.10,HKEQ:.10,TECH:.10,UST:.15,BUND:.10,IGC:.10,XAU:.05};
+const BW_TXT='25% US, 10% Europe, 10% HK & China, 10% Tech, 15% US Treasuries, 10% Bunds, 10% IG Credit, 5% Gold, 5% cash';
+const IPS=[
+ {t:'Equities (US, Europe, HK, Tech) 25–70%',test:w=>w.eq>=.25-1e-9&&w.eq<=.70+1e-9},
+ {t:'Any single asset ≤ 35%',test:w=>A.every(a=>w[a.k]<=.35+1e-9)},
+ {t:'Crude Oil + High Yield ≤ 20%',test:w=>w.WTI+w.HYC<=.20+1e-9},
+ {t:'Cash ≥ 1%',test:w=>w.cash>=.01-1e-9}
+];
+const RES={
+INFL:['US: growth is solid and hiring strong; inflation has fallen for six months but services prices are sticky.','Rates: the market prices two Fed cuts and positioning is long duration, so an upside inflation surprise is the main risk.','HK & China: cheap valuations but weak demand, and no policy catalyst yet. Europe: growth flat, ECB on hold.','Commodities: OPEC+ meets in the spring; gold is supported by central-bank buying.'],
+CHN:['China: manufacturing PMI below 50 and property sales falling; Beijing is under pressure to act.','HK equities: very cheap and heavily under-owned, so highly sensitive to stimulus headlines.','US: the Fed is expected to cut as payrolls slow. Europe: exporters depend on Chinese demand.','Commodities: the oil demand outlook hinges on China.'],
+CRD:['US banks: smaller lenders are losing deposits after commercial property losses.','Credit: high-yield spreads are tight, leaving little cushion if stress spreads.','Rates: the Fed sits at cycle highs and markets price further hikes.','Havens: Treasuries, Bunds and gold usually gain if risk sentiment cracks.'],
+OIL:['Middle East: tensions are rising near a strait that carries about 15% of seaborne crude.','Inflation: energy is the swing factor for headline CPI on both sides of the Atlantic.','Europe: the region most exposed to an energy shock; EUR moves with the ECB response.','Hedges: oil and gold usually rally on supply shocks, while equities and bonds can fall together.'],
+MIX:['Headlines in this run are drawn from every scenario: expect inflation, policy, credit and geopolitical shocks in random order.','Start near the benchmark, then take active overweight and underweight positions as the story develops.']};
+const SC={
+INFL:[
+{d:2,f:.35,tag:'Data',grp:'nfp',cal:['US payrolls','180k','265k'],h:'US payrolls jump 265k vs 180k expected; wages +0.5%',b:'Hiring is broad-based and earnings growth is the hottest in a year. Traders pare back rate-cut bets.',s:{G:.4,R:.7,I:.3,U:.4,S:-.2},why:'Strong jobs plus hot wages means fewer cuts. Yields rise, so Treasuries and long-duration Tech fall and the USD firms.'},
+{d:4,f:.55,tag:'Central bank',h:'Fed governor: “not yet confident inflation is beaten”',b:'Comments push back on market pricing of rate cuts.',s:{R:.35,S:-.25,U:.2},why:'Fed-speak confirms the data. A second signal in the same direction is a cue to keep trimming duration.'},
+{d:6,f:.4,tag:'Data',grp:'cpi',cal:['US CPI m/m','0.2%','0.5%'],h:'US CPI rises 0.5% m/m vs 0.2% expected',b:'Core services and shelter re-accelerate. Two-year yields post their biggest jump since spring.',s:{I:.9,R:1.3,S:-1,U:.6},dr:{R:[.12,4]},why:'The key event. An inflation surprise hits bonds and growth stocks together, so a 60/40 mix gives little protection. Cash, short duration and USD did the work.'},
+{d:9,f:.6,tag:'Rumour',pair:1,h:'Sources: OPEC+ weighing deeper output cuts',b:'Unconfirmed reports ahead of this week’s ministerial meeting.',s:{O:1},why:'Rumours move prices before facts. A small position before confirmation limits the damage if it is denied.'},
+{d:10,f:.45,tag:'Commodities',pair:1,cal:['OPEC+ meeting','Hold','Cut 1m bpd'],h:'OPEC+ confirms a 1m barrel/day cut',b:'Crude jumps; energy analysts lift forecasts.',s:{O:2.2,I:.3},dr:{O:[.2,3]},why:'Confirmation adds to the rumour move, and an oil supply cut also feeds inflation expectations.'},
+{d:13,f:.5,tag:'Central bank',grp:'fomc',cal:['FOMC decision','Hold','Hike 25bp'],h:'Fed hikes 25bp and signals more to come',b:'The dot plot shows no cuts this year. Chair: “We will do what it takes.”',s:{R:.9,S:-.8,U:.5,G:-.3},dr:{S:[-.15,3]},why:'A hawkish surprise is risk-off: equities, credit and gold drop while the USD rises. Being underweight duration helped.'},
+{d:16,f:.3,tag:'Earnings',h:'Mega-cap tech beats: cloud revenue +38%',b:'AI demand drives guidance raises across the sector.',s:{S:.3},a:{TECH:3.2,USEQ:.8},why:'Stock-specific good news can override macro. Tech rallied despite high yields, so a quick tactical add worked.'},
+{d:19,f:.5,tag:'Data',grp:'chpmi',cal:['China PMI','50.2','48.7'],h:'China manufacturing PMI slumps to 48.7',b:'New export orders are the lowest in 10 months.',s:{C:-1.3,O:-.5,G:-.2},why:'Weak China data hits HK equities and oil demand together. Check for the same theme hiding in several assets.'},
+{d:22,f:.4,tag:'Data',h:'US producer prices cool sharply',b:'PPI falls 0.3% as pipeline inflation eases.',s:{I:-.5,R:-.7,S:.5},why:'First sign the inflation wave is turning. Duration starts to recover.'},
+{d:25,f:.55,tag:'Central bank',h:'Fed chair: policy now “sufficiently restrictive”',b:'Markets read it as the end of hikes. Yields fall across the curve.',s:{R:-1,S:.9,U:-.5},dr:{S:[.12,4]},why:'The pivot. Bonds, Tech and gold rally together; teams that rebuilt duration after the PPI print were rewarded.'},
+{d:28,f:.35,tag:'Data',grp:'gdp',h:'US GDP revised up to 3.1%',b:'The soft-landing story gains ground.',s:{G:.5,S:.3,R:.2},why:'Good growth with cooling inflation is the best mix for equities.'}],
+CHN:[
+{d:1,f:.6,tag:'Data',grp:'chpmi',cal:['China PMI','49.8','49.1'],h:'China PMI misses at 49.1',b:'Property and construction drag; deflation worries grow.',s:{C:-.8,O:-.3},why:'Bad news can set up stimulus. The question is whether policymakers respond.'},
+{d:3,f:.45,tag:'Rumour',pair:1,h:'Report: Beijing preparing a major stimulus package',b:'Officials are said to be discussing property support and bank capital injections.',s:{C:1.6,S:.3},why:'HK markets are very sensitive to policy headlines. A starter position on the rumour paid off.'},
+{d:5,f:.4,tag:'Central bank',pair:1,h:'PBoC cuts reserve ratio 50bp and unveils a property rescue',b:'Mortgage rates lowered; regulators back developer financing.',s:{C:3,O:.8,S:.5},dr:{C:[.35,5]},why:'Confirmed, larger-than-expected stimulus. HK & China equities and oil rallied for days; momentum works after policy shocks.'},
+{d:8,f:.4,tag:'Data',grp:'cpi',cal:['US CPI m/m','0.3%','0.3%'],h:'US CPI in line at 0.3%',b:'No surprise; markets barely react.',s:{S:.15},why:'In-line data carries no edge. Avoid trading just because a release came out.'},
+{d:11,f:.5,tag:'Policy',h:'China’s fiscal package disappoints',b:'Smaller-than-hoped bond issuance and no direct support for consumers.',s:{C:-2.6,O:-.6,S:-.3},dr:{C:[-.25,3]},why:'“Buy the rumour, sell the fact.” Taking profit on the HK rally before details landed protected gains.'},
+{d:14,f:.5,tag:'Central bank',grp:'fomc',cal:['FOMC decision','Cut 25bp','Cut 25bp'],h:'Fed cuts 25bp as expected, with a dovish tone',b:'The chair opens the door to further easing.',s:{R:-.5,S:.4,U:-.4},why:'An expected cut with a slightly dovish message: a modest lift for bonds and gold, and a weaker USD.'},
+{d:17,f:.35,tag:'Commodities',h:'China crude imports hit a record',b:'Refiners restock ahead of winter.',s:{O:1.6},why:'Demand-side oil strength follows the China story.'},
+{d:20,f:.5,tag:'Geopolitics',pair:2,h:'US threatens new tariffs on Chinese tech',b:'A 60% levy is proposed; Beijing vows to retaliate.',s:{C:-1.9,S:-.6,U:.3},a:{TECH:-1.5},why:'Tariff headlines hit both HK equities and global tech. Diversifying across regions helped.'},
+{d:23,f:.4,tag:'Geopolitics',pair:2,h:'US and China agree to resume trade talks',b:'The tariff deadline is postponed 90 days.',s:{C:1.3,S:.5},a:{TECH:1},why:'A partial reversal: panic selling on the tariff threat locked in losses.'},
+{d:26,f:.5,tag:'Data',grp:'nfp',cal:['US payrolls','170k','95k'],h:'US payrolls miss at 95k',b:'The unemployment rate ticks up to 4.3%.',s:{G:-.5,R:-.7,U:-.6,S:-.2},why:'Weak jobs means more cuts priced in. Treasuries and EUR/USD gain.'},
+{d:28,f:.3,tag:'Commodities',h:'Gold hits a record on central bank buying',b:'Emerging-market central banks added 120 tonnes in the quarter.',s:{},a:{XAU:2.2},why:'Structural gold demand: gold held up through every stage of this scenario.'}],
+CRD:[
+{d:2,f:.4,tag:'Data',grp:'nfp',cal:['US payrolls','175k','182k'],h:'US payrolls steady at 182k',b:'The labour market is cooling gently.',s:{G:.1},why:'A quiet start; the real risk was building elsewhere.'},
+{d:4,f:.5,tag:'Markets',h:'Regional bank shares plunge on deposit outflows',b:'One lender falls 45% after disclosing commercial property losses.',s:{S:-1.5,R:-.6},a:{HYC:-1},why:'The early warning. Cutting high yield and adding Treasuries here was the best risk move of the run.'},
+{d:5,f:.6,tag:'Rumour',pair:1,h:'Sources: troubled lender seeking an emergency buyer',b:'Talks are said to be at an early stage.',s:{S:-.8},why:'When a bank seeks a buyer, depositors run. Treat it as a risk-off signal.'},
+{d:6,f:.45,tag:'Markets',pair:1,h:'Regulators seize regional bank; contagion fears spread',b:'Deposits are guaranteed, but shareholders and bondholders are wiped out.',s:{S:-2.6,R:-1.6,G:-.6,U:-.3},a:{XAU:1.5,HYC:-2},dr:{S:[-.2,3]},why:'A classic flight to quality: Treasuries and gold up, equities and high yield down. Real duration cushioned the blow.'},
+{d:8,f:.4,tag:'Central bank',h:'Fed launches an emergency lending facility',b:'Banks can borrow against bonds at par.',s:{S:1.6,R:.3},why:'A policy backstop often marks the bottom. Adding risk after the backstop, not before, is the disciplined play.'},
+{d:11,f:.5,tag:'Markets',h:'High-yield fund gates redemptions',b:'Spreads widen 80bp in a day; credit desks report thin liquidity.',s:{S:-.5},a:{HYC:-2.2,IGC:-.4},why:'Credit stress lingers after equities recover, and high yield is costly to trade.'},
+{d:14,f:.5,tag:'Central bank',grp:'fomc',cal:['FOMC decision','Hike 25bp','Hold'],h:'Fed pauses and signals cuts ahead',b:'Financial-stability concerns now outweigh inflation, says the chair.',s:{R:-1,S:.9,U:-.4},why:'A dovish surprise: everything with duration rallies.'},
+{d:17,f:.4,tag:'Data',grp:'cpi',cal:['US CPI m/m','0.3%','0.1%'],h:'US CPI cooler at 0.1%',b:'Used cars and airfares fall.',s:{I:-.5,R:-.5,S:.5},why:'Cool inflation confirms the cuts. Bonds and Tech benefit.'},
+{d:20,f:.45,tag:'Earnings',h:'Big bank earnings stable as deposit flight eases',b:'Large lenders gained deposits from smaller rivals.',s:{S:.8},a:{HYC:1,IGC:.5},why:'Confidence returns. Credit recovers last, but it recovers.'},
+{d:24,f:.4,tag:'Earnings',h:'AI capex boom: chipmakers raise guidance',b:'Data-centre orders double year on year.',s:{S:.4},a:{TECH:3,USEQ:.6},why:'With macro fear fading, growth leadership returns.'},
+{d:27,f:.5,tag:'Commodities',cal:['OPEC+ meeting','Hold','Hold'],h:'OPEC+ keeps output unchanged',b:'Crude drifts.',s:{O:-.3},why:'A non-event. Not every headline needs a trade.'}],
+OIL:[
+{d:2,f:.4,tag:'Geopolitics',h:'Tensions flare near a key shipping strait',b:'A naval incident is reported and tanker insurers raise premiums.',s:{O:2,S:-.5},a:{XAU:1},why:'The first signal of a supply shock. Oil and gold are the natural hedges.'},
+{d:4,f:.5,tag:'Geopolitics',h:'Tanker traffic halted through the strait',b:'Roughly 15% of seaborne crude is disrupted.',s:{O:3.2,S:-.9,I:.4},dr:{O:[.35,4]},why:'The shock escalates. Oil was the big winner while equities and bonds both fell on inflation fears.'},
+{d:7,f:.4,tag:'Data',grp:'cpi',cal:['US CPI m/m','0.3%','0.6%'],h:'US CPI 0.6% on the energy spike',b:'Gasoline +9% month on month.',s:{I:.7,R:.7,S:-.5,U:.3},why:'The energy shock flows into inflation and hurts bonds.'},
+{d:9,f:.5,tag:'Policy',h:'US announces a strategic petroleum reserve release',b:'60m barrels over two months.',s:{O:-1.6},why:'A policy response caps the spike: a good moment to take some profit on oil.'},
+{d:12,f:.45,tag:'Rumour',pair:1,h:'Reports: ceasefire talks under way',b:'Unnamed diplomats cite “constructive” contacts.',s:{O:-1.6,S:.6},why:'A rumour trap. Big bets on an unconfirmed report are risky.'},
+{d:13,f:.5,tag:'Geopolitics',pair:1,h:'Ceasefire talks collapse',b:'Both sides deny that negotiations took place.',s:{O:2.6,S:-.7},why:'The rumour reversed: teams that dumped oil on the ceasefire report bought it back higher.'},
+{d:16,f:.5,tag:'Central bank',grp:'fomc',cal:['FOMC decision','Hold','Hold'],h:'Fed holds and flags energy-driven inflation risk',b:'It looks through headline inflation for now.',s:{R:.2},why:'The expected outcome, with a small reaction.'},
+{d:19,f:.4,tag:'Commodities',cal:['OPEC+ meeting','Hold','+1.5m bpd'],h:'OPEC+ boosts output 1.5m barrels/day',b:'Gulf producers step in to offset lost supply.',s:{O:-2.6},dr:{O:[-.25,3]},why:'Supply relief turns oil down hard, and momentum flips.'},
+{d:22,f:.45,tag:'Data',h:'Consumer spending slumps; airlines cut guidance',b:'Retail sales −0.8% as fuel costs squeeze households.',s:{G:-.7,S:-.4,R:-.4},why:'The second-round effect: high energy prices slow growth, and bonds hedge again.'},
+{d:25,f:.5,tag:'Geopolitics',h:'Ceasefire agreed; shipping lanes to reopen',b:'Insurers cut war-risk premiums.',s:{O:-3,S:1.1},a:{XAU:-1.5},dr:{S:[.1,3]},why:'The real resolution: oil and gold drop and equities rally as the risk premium unwinds.'},
+{d:28,f:.4,tag:'Central bank',h:'ECB surprises with a hawkish hold',b:'It signals hikes if energy inflation persists.',s:{U:-.9},why:'Rate differentials drive FX: EUR/USD rises.'}]
+};
+const NAMES={INFL:'Sticky inflation',CHN:'China stimulus',CRD:'Credit scare',OIL:'Oil supply shock',MIX:'Surprise mix'};
+const CODE_RE=/^(INFL|CHN|CRD|OIL|MIX)-\d{1,6}$/;
+
+const mul=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+const hash=s=>{let h=2166136261;for(const c of s)h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0};
+const m$=x=>x>=1e6?'$'+(x/1e6).toFixed(x%1e6?1:0)+'M':'$'+Math.round(x/1e3)+'k';
+const M$=x=>'$'+(x/1e6).toFixed(2)+'M';
+const $$=x=>(x<0?'-':'')+'$'+Math.round(Math.abs(x)).toLocaleString('en-US');
+const pc=(v,d=2,s=true)=>(s&&v>0?'+':'')+(v*100).toFixed(d)+'%';
+const cls=v=>v>1e-9?'up':v<-1e-9?'dn':'';
+const fp=(a,p)=>p.toLocaleString('en-US',{minimumFractionDigits:a.dp,maximumFractionDigits:a.dp});
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const num=(v,d=0)=>Number.isFinite(+v)?+v:d;
+
+let S=null,timer=null,view='pf',sel=0,side=1,lbMode='this',db=null,lbDocs=[];
+let SQ=0,MODE='solo',R=null,roomApi=null,ROOM='',myPeer='',hostPeer='',lastSt=0,myName='Trader',myRole='Captain',sendT=0,sendPend=0;
+
+function mandates(r){
+ const chosen=[0,1,2,3,4,5].map(i=>[i,r()]).sort((x,y)=>x[1]-y[1]).map(x=>x[0]).slice(0,3);
+ const slots=[9,21,33];
+ return chosen.map((i,j)=>{
+  const a=slots[j]+Math.floor(r()*4),D=a+3,x=[800e3,1.2e6,1.6e6][Math.floor(r()*3)];
+  const o=[
+   {kind:'wd',x,title:`Raise ${m$(x)} cash by week ${D}`,text:`Client is buying a property and withdraws ${m$(x)} at the close of week ${D}. Hold at least that much cash by then.`},
+   {kind:'rule',title:`Crude Oil 0% from week ${D}`,text:`Family office adopts a fossil-fuel exclusion. Crude Oil must be 0% from the close of week ${D} to the end.`,test:w=>w.WTI<1e-4},
+   {kind:'rule',title:`Equities ≤ 45% from week ${D}`,text:`Risk committee lowers the client’s risk band: total equities (US, Europe, HK, Tech) at most 45% from the close of week ${D}.`,test:w=>w.eq<=.45+1e-9},
+   {kind:'rule',title:`Govt bonds + IG ≥ 35% from week ${D}`,text:`Client is two years from retirement: Treasuries, Bunds and IG Credit together at least 35% from the close of week ${D}.`,test:w=>w.UST+w.BUND+w.IGC>=.35-1e-9},
+   {kind:'rule',title:`Gold ≥ 5% from week ${D}`,text:`Client wants an inflation hedge: Gold at least 5% from the close of week ${D}.`,test:w=>w.XAU>=.05-1e-9},
+   {kind:'dep',x:3e6,title:`Invest $3M new money by week ${D}`,text:`Client adds $3M cash at the close of week ${a}. Get cash back under 10% of NAV by the close of week ${D}.`}
+  ][i];
+  return Object.assign(o,{a,D,status:'hidden',t:Math.round((a-1+.15)*TPD)});
+ });
+}
+
+function build(code,name,speed,train){
+ const pre=code.split('-')[0];const r=mul(hash(code));
+ let ev;
+ if(pre==='MIX'){
+  const pool=[];for(const k of ['INFL','CHN','CRD','OIL'])for(const e of SC[k])if(!e.pair)pool.push(e);
+  const sh=pool.map(e=>[e,r()]).sort((x,y)=>x[1]-y[1]).map(x=>x[0]);
+  const seen=new Set();ev=[];
+  for(const e of sh){if(ev.length===10)break;if(e.grp&&seen.has(e.grp))continue;if(e.grp)seen.add(e.grp);ev.push(e)}
+  ev=ev.map((e,i)=>Object.assign({},e,{d:Math.min(46,2+Math.floor(i*4.4+r()*2)),f:.2+r()*.6}));
+ }else ev=SC[pre].map(e=>Object.assign({},e,{d:clamp(Math.round(e.d*1.55),1,47)}));
+ ev.forEach(e=>e.t=Math.max(1,Math.round((e.d-1+e.f)*TPD)));
+ ev.sort((x,y)=>x.t-y.t);ev.forEach((e,i)=>e.n=i+1);
+ const md=mandates(r);
+ const fJ=[],aJ=[];
+ for(const e of ev)for(let j=0;j<4;j++){const t=e.t+j;if(t>T)break;fJ[t]=fJ[t]||{};aJ[t]=aJ[t]||{};
+  for(const f in e.s)fJ[t][f]=(fJ[t][f]||0)+e.s[f]/400;
+  for(const k in e.a||{})aJ[t][k]=(aJ[t][k]||0)+e.a[k]/400}
+ const drifts=[];for(const e of ev)for(const f in e.dr||{}){const [v,d]=e.dr[f];drifts.push({f,v:v*2/100/TPD,from:e.t+4,to:e.t+4+Math.max(1,Math.round(d/2))*TPD})}
+ const g=()=>{let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
+ const sq=Math.sqrt(1/TPD),P=[A.map(a=>a.p)];
+ for(let t=1;t<=T;t++){
+  const fr={};for(const f of F){fr[f]=FV[f]*VS/100*sq*g()+((fJ[t]||{})[f]||0);for(const d of drifts)if(d.f===f&&t>=d.from&&t<d.to)fr[f]+=d.v}
+  P.push(A.map((a,i)=>{let x=a.dr*5/100/TPD+a.iv*VS/100*sq*g()+((aJ[t]||{})[a.k]||0)*1.3;for(const f in a.b)x+=a.b[f]*fr[f];return P[t-1][i]*Math.exp(x)}));
+ }
+ return {code,name,speed,train,pre,ev,md,P,rid:Math.random().toString(36).slice(2,8),ep:0,i:0,cash:START,q:A.map(()=>0),avg:A.map(()=>0),units:START/100,bench:100,hU:[100],hB:[100],dU:[100],dB:[100],peak:100,mdd:0,bPeak:100,bmdd:0,ddPk:100,ddTr:100,tl:[],breach:0,nTr:0,costs:0,running:false,done:false,saved:false,newsLog:[],reported:false};
+}
+
+const px=(t=S.i)=>S.P[t];
+const nav=()=>S.cash+S.q.reduce((s,q,i)=>s+q*px()[i],0);
+const uv=()=>nav()/S.units;
+function W(){const N=nav(),w={cash:S.cash/N,eq:0};A.forEach((a,i)=>{w[a.k]=S.q[i]*px()[i]/N;if(a.c==='eq')w.eq+=w[a.k]});return w}
+
+/* core trade: returns {ok,txt}; never touches the UI */
+function trade(i,usd,how){
+ const r=trade0(i,usd);
+ if(r.ok&&how!=='forced'){const fat=!how&&S.i>0&&Math.abs(r.v)>.25*nav();S.tl.push([S.i,i,usd>0?1:-1,fat?1:0]);if(fat)r.txt+=' (oversized order: over 25% of NAV in one ticket)'}
+ return r;
+}
+function trade0(i,usd){
+ if(!S||S.done)return{ok:0,txt:'The run is over.'};
+ const a=A[i],p=px()[i],tc=a.tc/1e4;
+ if(usd>0){const max=S.cash/(1+tc);if(max<1)return{ok:0,txt:'No cash available. Sell something first.'};
+  let note='';if(usd>max){usd=max;note=' (reduced to available cash)'}
+  const c=usd*tc,ask=p*(1+tc),qn=usd/p;S.avg[i]=(S.q[i]*S.avg[i]+qn*ask)/(S.q[i]+qn);S.cash-=usd+c;S.q[i]+=qn;S.costs+=c;S.nTr++;
+  return{ok:1,v:usd,txt:`bought ${$$(usd)} ${a.n} at ${fp(a,ask)}${note}`}}
+ if(usd<0){const v=Math.min(-usd,S.q[i]*p);if(v<1)return{ok:0,txt:`no ${a.n} to sell (short selling is not allowed)`};
+  const c=v*tc;S.q[i]-=v/p;if(S.q[i]*p<.5){S.q[i]=0;S.avg[i]=0}S.cash+=v-c;S.costs+=c;S.nTr++;
+  return{ok:1,v,txt:`sold ${$$(v)} ${a.n} at ${fp(a,p*(1-tc))}`}}
+ return{ok:0,txt:'zero amount'};
+}
+function rebalanceTo(t){
+ const sum=t.reduce((s,v)=>s+v,0);if(sum>1+1e-9)return{ok:0,txt:'targets add up to more than 100%'};
+ const N=nav(),diff=A.map((a,i)=>t[i]*N-S.q[i]*px()[i]);let n=0;
+ diff.forEach((d,i)=>{if(d<-1000){trade(i,t[i]===0?-S.q[i]*px()[i]*2:d,'reb');n++}});
+ diff.forEach((d,i)=>{if(d>1000){trade(i,d,'reb');n++}});
+ return{ok:1,txt:n?`rebalanced with ${n} trades; cash now ${(W().cash*100).toFixed(1)}%`:'already at targets'};
+}
+/* every user action goes through act(): local in solo/host, sent to the host when following */
+function act(o){
+ if(!S)return;
+ if(MODE==='follow'){if(!R||!R.connected())return say('Not connected to the team room.',1);R.emit('req',Object.assign({nm:myName},o)).catch(()=>say('Could not reach the host.',1));say('Sent to host…');return}
+ const r=apply(o,myName);say((r.ok?'You ':'Rejected: ')+r.txt,!r.ok);
+}
+function apply(o,who){
+ if(!S)return{ok:0,txt:'no market'};
+ let r={ok:0,txt:'unknown request'};
+ if(o.k==='trade'){const i=Math.floor(num(o.i,-1)),usd=num(o.usd);if(i<0||i>=A.length||!usd)return{ok:0,txt:'bad order'};r=trade(i,clamp(usd,-1e9,1e9))}
+ else if(o.k==='close'){const i=Math.floor(num(o.i,-1));if(i<0||i>=A.length)return{ok:0,txt:'bad order'};r=S.q[i]?trade(i,-S.q[i]*px()[i]*2,'close'):{ok:0,txt:`no ${A[i].n} position to close`}}
+ else if(o.k==='rebal'){if(!Array.isArray(o.t)||o.t.length!==A.length)return{ok:0,txt:'bad targets'};r=rebalanceTo(o.t.map(v=>clamp(num(v),0,1)))}
+ else if(o.k==='play'){if(S.done)return{ok:0,txt:'run is over'};S.running?pause():play();r={ok:1,txt:S.running?(S.i===0?'started the market':'resumed the market'):'paused the market'}}
+ if(S.done&&o.k!=='play')r={ok:0,txt:'the run is over'};
+ if(r.ok&&o.k!=='play')S.hU[S.i]=uv();
+ if(R&&MODE==='host'){activity(who,r);R.emit('act',{who:String(who).slice(0,20),ok:r.ok?1:0,txt:r.txt}).catch(()=>{})}
+ render();broadcast(true);return r;
+}
+function say(t,err){const m=$('msg');m.textContent=t;m.className='msg'+(err?' err':'')}
+function parseAmt(s){s=String(s).trim().toLowerCase().replace(/[$,\s]/g,'');const m=s.match(/^(\d*\.?\d+)([km]?)$/);if(!m)return NaN;return +m[1]*(m[2]==='k'?1e3:m[2]==='m'?1e6:1)}
+
+function addNews(o,tm,fromHost){
+ tm=tm||clockTxt();
+ const li=document.createElement('li');li.className='nw new'+(o.cls==='desk'||o.cls==='alert'?' '+o.cls:'');
+ li.innerHTML=`<div class="nm">${o.n?`<span class="num">${esc(o.n)}</span>`:''}<span class="tag">${esc(o.tag)}</span><time>${esc(tm)}</time></div><b>${esc(o.h)}</b>${o.b?`<p>${esc(o.b)}</p>`:''}`;
+ $('news').prepend(li);setTimeout(()=>li.classList.remove('new'),2100);
+ while($('news').children.length>80)$('news').lastChild.remove();
+ $('wireTxt').textContent=o.h;const w=$('wire');w.classList.remove('flash');void w.offsetWidth;w.classList.add('flash');
+ $('newsCount').textContent=$('news').children.length+' items';
+ if(S){S.newsLog.push({o:{n:o.n||0,tag:o.tag,h:o.h,b:o.b||'',cls:o.cls||''},tm});if(S.newsLog.length>20)S.newsLog.shift()}
+ if(!fromHost&&R&&MODE==='host')R.emit('nw',{o:{n:o.n||0,tag:o.tag,h:o.h,b:(o.b||'').slice(0,600),cls:o.cls||''},tm,rid:S.rid}).catch(()=>{});
+}
+function clockTxt(){if(!S||S.i===0)return 'Pre-open';const w=wkOf(S.i),k=(S.i-1)%TPD;return `Wk ${w} · ${MON[Math.floor((w-1)/4)]} · ${['Mon','Tue','Wed','Thu','Fri'][Math.min(4,Math.floor(k/8))]}`}
+
+function step(){
+ if(!S||S.done||MODE==='follow')return;
+ S.i++;const t=S.i,p0=S.P[t-1],p1=S.P[t];
+ let br=0;for(const k in BW){const i=A.findIndex(a=>a.k===k);br+=BW[k]*(p1[i]/p0[i]-1)}
+ S.bench*=1+br;
+ for(const e of S.ev)if(!e.fired&&e.t<=t){e.fired=1;addNews({n:e.n,tag:e.tag,h:e.h,b:e.b});if(S.train)pause('Training pause: discuss the headline, then press Resume or Space.')}
+ for(const m of S.md)if(m.status==='hidden'&&m.t<=t){m.status='active';addNews({tag:'Client request',h:m.title,b:m.text,cls:'desk'});if(S.train)pause('Training pause: new client request.')}
+ if(t%TPD===0)dayClose(t/TPD);
+ const u=uv();S.hU[t]=u;S.hB[t]=S.bench;
+ S.peak=Math.max(S.peak,u);if(1-u/S.peak>S.mdd){S.mdd=1-u/S.peak;S.ddPk=S.peak;S.ddTr=u}S.bPeak=Math.max(S.bPeak,S.bench);S.bmdd=Math.max(S.bmdd,1-S.bench/S.bPeak);
+ render();
+ if(t>=T)finish();
+ broadcast();
+}
+function dayClose(d){
+ S.cash*=1+RF/PPY;S.bench*=1+.05*RF/PPY;
+ let w=W();const issues=[];
+ for(const m of S.md){
+  if(m.status==='active'&&m.D===d){
+   if(m.kind==='wd'){
+    if(S.cash>=m.x){const u=uv();S.cash-=m.x;S.units-=m.x/u;m.status='met'}
+    else{const need=(m.x-S.cash)*1.02,inv=nav()-S.cash;A.forEach((a,i)=>{const v=S.q[i]*px()[i];if(v>0)trade(i,-need*v/inv,'forced')});
+     const pen=m.x*.01;S.cash-=pen;S.costs+=pen;const u=uv(),take=Math.min(Math.max(S.cash,0),m.x);S.cash-=take;S.units-=take/u;m.status='missed';issues.push('Withdrawal not covered: forced sale plus 1% penalty')}
+   }else if(m.kind==='rule'){m.status=m.test(w)?'met':'missed';if(m.status==='missed')issues.push(m.title+' missed')}
+   else if(m.kind==='dep'){m.status=S.cash/nav()<=.10?'met':'missed';if(m.status==='missed')issues.push(m.title+' missed')}
+   w=W();
+  }
+  if(m.kind==='rule'&&m.D<d&&m.status!=='active'&&!m.test(w)){S.breach++;issues.push(m.title.replace(/ from week \d+/,''))}
+  if(m.kind==='dep'&&m.a===d&&m.status==='active'){const u=uv();S.cash+=m.x;S.units+=m.x/u;w=W();addNews({tag:'Client request',h:`${m$(m.x)} new money credited to cash`,b:`Invest it by the close of week ${m.D}.`,cls:'desk'})}
+ }
+ for(const r of IPS)if(!r.test(w)){S.breach++;issues.push(r.t)}
+ if(issues.length)addNews({tag:'Compliance',h:`Week ${d} close: ${issues.length} limit ${issues.length>1?'breaches':'breach'}`,b:issues.join(' · '),cls:'alert'});
+ if(d%4===0&&d<DAYS){const t0=(d-4)*TPD,t1=d*TPD,ch=k=>{const i=A.findIndex(a=>a.k===k);return pc(S.P[t1][i]/S.P[t0][i]-1,1)},p=S.P[t1];
+  addNews({tag:'Market wrap',h:`${MON[d/4-1]} wrap: US ${ch('USEQ')}, Europe ${ch('EUEQ')}, HK ${ch('HKEQ')}, Tech ${ch('TECH')}`,b:`US 10Y yield ${(4.2-Math.log(p[4]/100)*100/8).toFixed(2)}% · Bund ${(2.4-Math.log(p[5]/100)*100/8).toFixed(2)}% · Gold ${fp(A[8],p[8])} · Crude ${fp(A[9],p[9])} · EUR/USD ${fp(A[10],p[10])}`})}
+ S.dU.push(uv());S.dB.push(S.bench);
+}
+
+function stats(dU){const r=[];for(let i=1;i<dU.length;i++)r.push(dU[i]/dU[i-1]-1);if(r.length<3)return{vol:null,sh:null};const m=r.reduce((s,x)=>s+x,0)/r.length,sd=Math.sqrt(r.reduce((s,x)=>s+(x-m)**2,0)/(r.length-1));const vol=sd*Math.sqrt(PPY);return{vol,sh:vol>1e-9?(m*PPY-RF)/vol:0}}
+/* News response: after each market-moving headline, did the desk trade the right way within ~20 real seconds? */
+function newsResp(){
+ const win=clamp(Math.round(20*TPD/S.speed),6,TPD);let n=0,s=0;const per=[];
+ for(const e of S.ev){
+  if(e.t+win>S.i&&!S.done){per.push(null);continue}
+  const t0=Math.max(0,e.t-1),t1=Math.min(T,e.t+TPD),mv=A.map((a,i)=>S.P[t1][i]/S.P[t0][i]-1);
+  if(!mv.some(r=>Math.abs(r)>.012)){per.push(null);continue}
+  let good=0,bad=0;for(const [t,i,sg] of S.tl){if(t<e.t||t>e.t+win)continue;const r=mv[i];if(Math.abs(r)<.005)continue;Math.sign(r)===sg?good++:bad++}
+  const v=good&&!bad?1:good&&bad?.5:0;per.push(v);n++;s+=v}
+ return{v:n?s/n:null,per,win};
+}
+const SW={perf:300,risk:200,disc:200,news:150,res:75,tm:75};
+function score(){
+ const ret=uv()/100-1,bret=S.bench/100-1,al=ret-bret,s=stats(S.dU),sb=stats(S.dB),missed=S.md.filter(m=>m.status==='missed').length;
+ const nr=newsResp(),fat=S.tl.filter(x=>x[3]).length,costBps=S.costs/START*1e4;
+ const p={
+  perf:clamp(.5+al*100/16,0,1),
+  risk:.6*(s.sh==null?.5:clamp(.5+(s.sh-(sb.sh||0))*.15,0,1))+.4*clamp(1-S.mdd/.15,0,1),
+  disc:clamp(1-.03*S.breach-.25*missed,0,1),
+  news:nr.v==null?.5:nr.v,
+  res:S.mdd<.02?1:clamp((uv()-S.ddTr)/Math.max(1e-9,S.ddPk-S.ddTr),0,1),
+  tm:clamp(.7*(1-costBps/60)+.3*(1-fat/4),0,1)};
+ let total=0;for(const k in SW)total+=p[k]*SW[k];
+ return{ret,bret,al,vol:s.vol,sh:s.sh,missed,p,nr,fat,costBps,total:Math.round(total)};
+}
+
+const rowsB=$('mktB');
+rowsB.innerHTML=A.map((a,i)=>`<tr data-i="${i}"><td><span class="an">${a.n}</span><span class="as" id="sub${i}">${a.k}</span></td><td class="bid" id="bd${i}"></td><td class="ask" id="ak${i}"></td><td id="d${i}"></td><td><svg width="64" height="20" aria-hidden="true"><polyline id="sp${i}" fill="none" stroke-width="1.5" points=""/></svg></td><td id="h${i}"></td><td id="av${i}"></td><td id="pl${i}"></td><td id="w${i}"></td><td id="ab${i}"></td><td><input id="tg-${a.k}" inputmode="decimal" aria-label="Target weight for ${a.n}" placeholder="0"></td><td><button class="buy" data-b="${i}" aria-label="Buy ${a.n}">B</button> <button class="sell" data-s="${i}" aria-label="Sell ${a.n}">S</button></td></tr>`).join('');
+rowsB.children[0].classList.add('sel');
+
+function render(){
+ if(!S)return;
+ const N=nav(),w=W(),p=px(),t=S.i,ds=t===0?0:Math.floor((t-1)/TPD)*TPD;
+ A.forEach((a,i)=>{
+  const tc=a.tc/1e4;$('bd'+i).textContent=fp(a,p[i]*(1-tc));$('ak'+i).textContent=fp(a,p[i]*(1+tc));
+  const dc=p[i]/S.P[ds][i]-1,de=$('d'+i);de.textContent=pc(dc);de.className=cls(dc);
+  if(a.k==='UST')$('sub'+i).textContent=`UST · yld ${(4.2-Math.log(p[i]/100)*100/8).toFixed(2)}%`;
+  else if(a.k==='BUND')$('sub'+i).textContent=`BUND · yld ${(2.4-Math.log(p[i]/100)*100/8).toFixed(2)}%`;
+  else if(a.k==='IGC')$('sub'+i).textContent=`IGC · yld ${(5.1-Math.log(p[i]/100)*100/6).toFixed(2)}%`;
+  else if(a.k==='HYC')$('sub'+i).textContent=`HYC · yld ${(7.4-Math.log(p[i]/100)*100/4).toFixed(2)}%`;
+  const v=S.q[i]*p[i];$('h'+i).textContent=S.q[i]?$$(v):'—';$('av'+i).textContent=S.q[i]?fp(a,S.avg[i]):'—';
+  const pl=S.q[i]*(p[i]-S.avg[i]),pe=$('pl'+i);pe.textContent=S.q[i]?$$(pl):'—';pe.className=S.q[i]?cls(pl):'';
+  $('w'+i).textContent=S.q[i]?(w[a.k]*100).toFixed(1)+'%':'—';
+  const ab=w[a.k]-(BW[a.k]||0),abe=$('ab'+i);abe.textContent=Math.abs(ab)<.0005?'0.0':(ab>0?'OW +':'UW ')+(ab*100).toFixed(1);abe.className=ab>.0005?'up':ab<-.0005?'dn':'';
+  if(t%4===0||t<2){const pts=[],st=Math.max(1,Math.ceil(t/36));let lo=1e18,hi=-1e18;for(let j=0;j<=t;j+=st){lo=Math.min(lo,S.P[j][i]);hi=Math.max(hi,S.P[j][i])}
+   for(let j=0;j<=t;j+=st)pts.push(((j/Math.max(t,1))*62+1).toFixed(1)+','+(hi>lo?(18-(S.P[j][i]-lo)/(hi-lo)*16):10).toFixed(1));
+   const sp=$('sp'+i);sp.setAttribute('points',pts.join(' '));sp.style.stroke=p[i]>=S.P[0][i]?'var(--up)':'var(--dn)'}
+ });
+ $('cashH').textContent=$$(S.cash);$('cashW').textContent=(w.cash*100).toFixed(1)+'%';const cab=w.cash-.05;$('cashAB').textContent=(cab>0?'OW +':'UW ')+(cab*100).toFixed(1);
+ const sc=score();
+ $('kNav').textContent=M$(N);$('kNavS').textContent='cash '+M$(S.cash);
+ set('kRet',pc(sc.ret),sc.ret);$('kRetS').textContent='benchmark '+pc(sc.bret);set('kAlp',pc(sc.al),sc.al);
+ $('kVol').textContent=sc.vol==null?'—':(sc.vol*100).toFixed(1)+'%';$('kSh').textContent='Sharpe '+(sc.sh==null?'—':sc.sh.toFixed(2));
+ set('kDD',pc(-S.mdd),-S.mdd);$('kDDS').textContent='benchmark '+pc(-S.bmdd);
+ const bad=S.breach+sc.missed;$('kCmp').textContent=bad?bad+' issues':'Clean';$('kCmp').className='n '+(bad?'dn':'up');
+ $('kCmpS').textContent=`${S.breach} breach-weeks · ${sc.missed} missed`;
+ $('kSc').textContent=t<TPD?'—':sc.total;
+ $('clock').textContent=S.done?'Closed':clockTxt();
+ $('play').textContent=S.done?'Finished':S.running?'Pause':S.i===0?'Start trading':'Resume';$('play').disabled=S.done;
+ renderRules(w);renderCal();ticketEst();tgSum();draw();
+}
+function set(id,txt,v){const e=$(id);e.textContent=txt;e.className='n '+cls(v)}
+function renderRules(w){
+ const L=IPS.map(r=>`<li><span class="dot ${r.test(w)?'':'bad'}"></span><span class="t">${r.t}</span></li>`);
+ const day=S.i===0?0:Math.floor((S.i-1)/TPD)+1;
+ for(const m of S.md){if(m.status==='hidden')continue;
+  const ok=m.kind==='rule'?m.test(w):m.kind==='wd'?S.cash>=m.x:w.cash<=.10,left=m.D-day;
+  const st=m.status==='active'?(left<=0?'Due at this week’s close':`Due in ${left} week${left>1?'s':''}`):m.status==='met'?(m.kind==='rule'?'Met · in force':'Met'):'Missed';
+  L.push(`<li><span class="dot ${m.status==='missed'?'bad':ok?'':'wait'}"></span><span class="t">${esc(m.title)}</span><span class="st ${m.status==='met'?'up':m.status==='missed'?'dn':''}">${st}</span></li>`)}
+ $('rules').innerHTML=L.join('');
+ const hid=S.md.filter(m=>m.status==='hidden').length;
+ $('mNote').textContent=(hid?`${hid} more client request${hid>1?'s':''} will arrive during the run. `:'')+'Limits are checked at every weekly close; each rule broken costs a breach-week.';
+}
+function renderCal(){$('cal').innerHTML=S.ev.filter(e=>e.cal).map(e=>`<li><span class="d">W${e.d}</span><span class="t">${esc(e.cal[0])}</span><span class="v">${e.fired?`<b>${esc(e.cal[2])}</b> <span style="color:var(--mut)">vs ${esc(e.cal[1])}</span>`:`cons. ${esc(e.cal[1])}`}</span></li>`).join('')||'<li><span class="t">No scheduled releases in this run.</span></li>'}
+function ticketEst(){const v=parseAmt($('amt').value);$('tkName').textContent=A[sel].n;$('tkEst').textContent=isNaN(v)||!S?'Enter an amount':`≈ ${(v/nav()*100).toFixed(1)}% of NAV · spread cost ${$$(v*A[sel].tc/1e4)} (${A[sel].tc} bp)`}
+function tgSum(){let s=0;for(const a of A){const v=parseFloat($('tg-'+a.k).value);if(!isNaN(v))s+=v}$('tgSum').textContent=s.toFixed(1)+'%';$('tgCash').textContent=(100-s).toFixed(1)+'%';$('tgCash').className='mono '+(s>100?'dn':'')}
+function setSide(s){side=s;$('sB').classList.toggle('on',s>0);$('sS').classList.toggle('on',s<0);$('tx').className=s>0?'b':'s';$('tx').textContent=s>0?'Transmit buy':'Transmit sell'}
+
+const cv=$('cv');
+const C={co:'#3b8cff',ink:'#dde1e8',mut:'#8b94a5',line:'#232832',bench:'#7d8597'};
+function draw(){
+ if(!S)return;const W_=cv.clientWidth,H=cv.clientHeight;if(!W_||!H)return;
+ const dpr=window.devicePixelRatio||1;cv.width=W_*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);
+ const t=S.i,narrow=W_<520,m={l:narrow?40:48,r:narrow?62:96,t:44,b:26},iw=W_-m.l-m.r,ih=H-m.t-m.b;
+ let series;
+ if(view==='pf')series=[{d:S.hB,c:C.bench,w:1.8,l:'Benchmark'},{d:S.hU,c:C.co,w:2.6,l:'Portfolio'}];
+ else{const base=S.P[0][sel];series=[{d:S.P.slice(0,t+1).map(p=>p[sel]/base*100),c:C.co,w:2.2,l:A[sel].k}]}
+ let lo=1e9,hi=-1e9;for(const s of series)for(let j=0;j<=t;j++){const v=s.d[j];if(v==null)continue;lo=Math.min(lo,v);hi=Math.max(hi,v)}
+ const pad=Math.max((hi-lo)*.12,.4);lo-=pad;hi+=pad;
+ const X=j=>m.l+j/T*iw,Y=v=>m.t+(1-(v-lo)/(hi-lo))*ih;
+ x.font='13px "IBM Plex Mono",monospace';x.lineWidth=1;
+ const span=hi-lo,stp=[.2,.5,1,2,5,10,20,50].find(s=>span/s<=5)||100;
+ for(let v=Math.ceil(lo/stp)*stp;v<=hi;v+=stp){x.strokeStyle=C.line;x.beginPath();x.moveTo(m.l,Y(v));x.lineTo(m.l+iw,Y(v));x.stroke();x.fillStyle=C.mut;x.textAlign='right';x.fillText(v.toFixed(stp<1?1:0),m.l-6,Y(v)+4)}
+ x.textAlign='center';for(let mo=0;mo<12;mo+=narrow?3:1){x.fillStyle=C.mut;x.fillText(MON[mo],X((mo*4+2)*TPD),H-8)}
+ x.strokeStyle=C.line;for(let mo=1;mo<12;mo++){x.beginPath();x.moveTo(X(mo*4*TPD),m.t+ih);x.lineTo(X(mo*4*TPD),m.t+ih+5);x.stroke()}
+ let lastX=-99,row=0;
+ for(const e of S.ev)if(e.fired){const ex=X(e.t);row=ex-lastX<20?1-row:0;lastX=ex;const my=m.t-11-row*20;
+  x.strokeStyle=C.co;x.globalAlpha=.35;x.setLineDash([3,3]);x.beginPath();x.moveTo(ex,m.t);x.lineTo(ex,m.t+ih);x.stroke();x.setLineDash([]);x.globalAlpha=1;
+  x.fillStyle=C.co;x.fillRect(ex-9,my-9,18,18);x.fillStyle='#fff';x.font='600 11px "IBM Plex Mono",monospace';x.fillText(e.n,ex,my+4);x.font='13px "IBM Plex Mono",monospace'}
+ const ends=[];
+ for(const s of series){x.strokeStyle=s.c;x.lineWidth=s.w;x.lineJoin='round';x.beginPath();let st=0;for(let j=0;j<=t;j++){const v=s.d[j];if(v==null)continue;st?x.lineTo(X(j),Y(v)):(x.moveTo(X(j),Y(v)),st=1)}x.stroke();const lv=s.d[t];if(lv!=null)ends.push({y:Y(lv),v:lv,c:s.c,l:s.l,x:X(t)})}
+ ends.sort((a,b)=>a.y-b.y);for(let k=1;k<ends.length;k++)if(ends[k].y-ends[k-1].y<30)ends[k].y=ends[k-1].y+30;
+ x.textAlign='left';for(const e of ends){x.fillStyle=e.c;x.beginPath();x.arc(e.x,Y(e.v),3.5,0,7);x.fill();x.font='600 14px "IBM Plex Mono",monospace';x.fillText(e.v.toFixed(2),m.l+iw+8,e.y+1);x.font='13px "IBM Plex Sans",sans-serif';x.fillStyle=C.mut;x.fillText(narrow?e.l.slice(0,5):e.l,m.l+iw+8,e.y+15)}
+}
+const ro=new ResizeObserver(()=>draw());ro.observe($('fig'));
+
+function play(){if(!S||S.done)return;if(MODE==='follow'){act({k:'play'});return}if(S.running){pause();return}S.running=true;clearInterval(timer);timer=setInterval(step,S.speed*1000/TPD);if(S.i===0)say('Market is open. Good luck.');render();broadcast(true)}
+function pause(why){if(!S)return;S.running=false;clearInterval(timer);if(why)say(why);render();broadcast(true)}
+
+function start(code,name,speed,train){
+ clearInterval(timer);S=build(code,name,speed,train);$('news').innerHTML='';$('activity').innerHTML='';
+ $('codeChip').textContent=code+' · '+NAMES[S.pre];
+ for(const a of A)$('tg-'+a.k).value='';
+ addNews({tag:'Desk',cls:'desk',h:'Mandate: balanced private-bank client, $20M, 12 months',b:`Benchmark: ${BW_TXT}. You start 100% in cash. Read the research notes, set your initial allocation, then press Start.`});
+ addNews({tag:'Desk',cls:'desk',h:'Three client requests will arrive during the year',b:'Each has a deadline. Missing one hurts your Discipline score; ongoing rules are then checked at every weekly close.'});
+ RES[S.pre].forEach((t,k)=>addNews({tag:'Research',h:t,b:k===0?'Use these regional views to decide where to be overweight or underweight versus the benchmark.':''}));
+ render();renderLB();sendSync();
+}
+function finish(){
+ if(S.done)return;S.done=true;S.running=false;clearInterval(timer);
+ const sc=score();render();broadcast(true);showReport(sc);if(MODE!=='follow')saveRun(sc);
+}
+function showReport(sc){
+ if(S.reported)return;S.reported=true;
+ const team=MODE!=='solo';
+ $('rTitle').textContent=`${team?'Team':S.name}: ${sc.total} / 1,000`;
+ $('rSub').textContent=`${NAMES[S.pre]} · market ${S.code} · ${S.nTr} trades · trading costs ${$$(S.costs)}`;
+ const bar=(l,k)=>`<div class="sbr"><span>${l}</span><i><b style="width:${(sc.p[k]*100).toFixed(1)}%"></b></i><span>${Math.round(sc.p[k]*100)}% · ${Math.round(sc.p[k]*SW[k])}</span></div>`;
+ const mv=e=>{const t0=Math.max(0,e.t-1),t1=Math.min(T,e.t+TPD);return A.map((a,i)=>({k:a.k,r:S.P[t1][i]/S.P[t0][i]-1})).sort((x,y)=>Math.abs(y.r)-Math.abs(x.r)).slice(0,3).map(o=>`<span class="${cls(o.r)}">${o.k} ${pc(o.r,1)}</span>`).join('<br>')};
+ $('rBody').innerHTML=`
+ <div class="big"><span class="n">${sc.total}</span><span>${sc.total>=800?'Top-desk performance.':sc.total>=650?'Strong run: tighten one area below.':sc.total>=500?'Solid base. Study the event recap.':'Rough market. Replay the same code and beat it.'}</span></div>
+ <div class="sb">${bar('Performance (alpha)','perf')}${bar('Risk management','risk')}${bar('Discipline','disc')}${bar('News response','news')}${bar('Resilience','res')}${bar('Trade management','tm')}</div>
+ <div class="stats"><div>Return<b class="${cls(sc.ret)}">${pc(sc.ret)}</b></div><div>Benchmark<b>${pc(sc.bret)}</b></div><div>Alpha<b class="${cls(sc.al)}">${pc(sc.al)}</b></div><div>Sharpe<b>${sc.sh==null?'—':sc.sh.toFixed(2)}</b></div><div>Max drawdown<b>${pc(-S.mdd)}</b></div><div>Breach-weeks<b>${S.breach}</b></div><div>Missed requests<b>${sc.missed}</b></div><div>Oversized orders<b>${sc.fat}</b></div><div>Trading costs<b>${sc.costBps.toFixed(1)} bp</b></div></div>
+ <p class="note" style="padding:0">How each metric is scored: Performance from alpha vs the benchmark · Risk from Sharpe vs the benchmark and max drawdown · Discipline from limit breaches and missed client requests · News response: trading the right direction within about 20 seconds of each market-moving headline · Resilience: how much of your worst drawdown you won back · Trade management: costs and tickets over 25% of NAV.</p>
+ <h3>Event recap: what moved and why</h3>
+ <div class="scroll"><table class="recap"><thead><tr><th>#</th><th>Headline</th><th>Next-week movers</th><th>Your response</th><th>Takeaway</th></tr></thead><tbody>${S.ev.map((e,j)=>{const v=sc.nr.per[j];return `<tr><td><span class="num">${e.n}</span> W${e.d}</td><td>${esc(e.h)}</td><td class="mv">${mv(e)}</td><td class="${v===1?'up':v===0?'dn':''}">${v==null?'Not scored':v===1?'Right way, in time':v===.5?'Mixed':'Missed or wrong way'}</td><td>${esc(e.why)}</td></tr>`}).join('')}</tbody></table></div>
+ <h3>Client requests</h3><ul class="list rows">${S.md.map(m=>`<li><span class="dot ${m.status==='met'?'':'bad'}"></span><span class="t">${esc(m.title)}</span><span class="st ${m.status==='met'?'up':'dn'}">${m.status==='met'?'Met':'Missed'}</span></li>`).join('')}</ul>
+ <p class="msg" id="saveNote"></p>
+ <div class="acts"><button id="copyRes">Copy result</button>${MODE==='follow'?'':'<button id="again">Replay this market</button><button class="pri" id="fresh">New market</button>'}<button id="closeRep">Close</button></div>`;
+ $('copyRes').onclick=()=>{const txt=resultText(sc);navigator.clipboard?.writeText(txt).then(()=>$('saveNote').textContent='Copied. Paste it in your team chat.',()=>$('saveNote').textContent=txt)};
+ $('closeRep').onclick=()=>$('report').close();
+ if($('again'))$('again').onclick=()=>{$('report').close();start(S.code,S.name,S.speed,S.train)};
+ if($('fresh'))$('fresh').onclick=()=>{$('report').close();openSetup(true)};
+ try{$('report').showModal()}catch(e){$('report').setAttribute('open','')}
+}
+const teamNames=()=>{if(!R)return myName;const n=R.peers().map(p=>String(p.presence?.name||'').slice(0,20)).filter(Boolean);return [...new Set(n)].join(', ')||myName};
+const resultText=sc=>`Wealth Desk · ${S.code} (${NAMES[S.pre]}) · ${MODE==='solo'?S.name:'Team '+teamNames()}: ${sc.total}/1000 | return ${pc(sc.ret)} vs benchmark ${pc(sc.bret)} (alpha ${pc(sc.al)}) | Sharpe ${sc.sh==null?'n/a':sc.sh.toFixed(2)} | max DD ${pc(-S.mdd)} | ${S.breach} breach-weeks, ${sc.missed} missed requests | news response ${sc.nr.v==null?'n/a':Math.round(sc.nr.v*100)+'%'}`;
+
+function localRuns(){try{return JSON.parse(localStorage.getItem('wds-runs')||'[]')}catch(e){return[]}}
+function saveRun(sc){
+ if(S.saved)return;S.saved=true;
+ const row={name:(MODE==='solo'?S.name:'Team: '+teamNames()).slice(0,80),team:MODE!=='solo',code:S.code,score:sc.total,ret:+sc.ret.toFixed(5),alpha:+sc.al.toFixed(5),sharpe:sc.sh==null?null:+sc.sh.toFixed(3),mdd:+S.mdd.toFixed(5),breach:S.breach,missed:sc.missed,at:new Date().toISOString()};
+ try{const l=localRuns();l.push(row);localStorage.setItem('wds-runs',JSON.stringify(l.slice(-100)))}catch(e){}
+ const note=t=>{const n=$('saveNote');if(n)n.textContent=t};
+ if(db)db.collection('runs').add(row).then(()=>note('Saved to the shared leaderboard.'),()=>{note('Saved on this device only (the page owner can invite you as an Editor to post shared scores).');renderLB()});
+ else{note('Saved on this device. Use Copy result to share it.');renderLB()}
+}
+function renderLB(){
+ const all=db&&lbDocs.length?lbDocs:localRuns(),code=S?.code;
+ const rows=(lbMode==='this'&&code?all.filter(r=>r.code===code):all).slice().sort((a,b)=>num(b.score)-num(a.score)).slice(0,10);
+ $('lb').innerHTML=rows.map((r,i)=>`<li><span class="d">${i+1}</span><span class="t">${esc(r.name||'Someone')}${lbMode==='all'?` <span style="color:var(--mut)">${esc(r.code||'')}</span>`:''}</span><span class="v ${cls(num(r.alpha))}">${pc(num(r.alpha))}</span><span class="v"><b>${esc(Math.round(num(r.score)))}</b></span></li>`).join('');
+ $('lbNote').textContent=rows.length?(db&&lbDocs.length?'Shared with everyone who opens this page. Alpha, then score.':'Stored on this device. Alpha, then score.'):(lbMode==='this'?'No finished runs on this market yet.':'No finished runs yet.');
+}
+
+/* ---------- team room ---------- */
+function stateMsg(){
+ return{c:S.code,rid:S.rid,ep:S.ep,sq:++SQ,nm:S.name,sp:S.speed,tr:S.train?1:0,i:S.i,run:S.running?1:0,done:S.done?1:0,
+  cash:+S.cash.toFixed(2),q:S.q.map(v=>+v.toPrecision(10)),avg:S.avg.map(v=>+v.toPrecision(10)),u:+S.units.toPrecision(12),b:+S.bench.toPrecision(12),
+  pk:S.peak,mdd:S.mdd,bpk:S.bPeak,bmdd:S.bmdd,dpk:S.ddPk,dtr:S.ddTr,tl:S.tl.slice(-80),br:S.breach,nt:S.nTr,co:+S.costs.toFixed(2),ms:S.md.map(m=>({hidden:'h',active:'a',met:'m',missed:'x'})[m.status]),
+  dU:S.dU.map(v=>+v.toFixed(4)),dB:S.dB.map(v=>+v.toFixed(4))};
+}
+function broadcast(force){
+ if(!R||MODE!=='host'||!S)return;
+ const now=Date.now();
+ if(!force&&now-sendT<250){if(!sendPend)sendPend=setTimeout(()=>{sendPend=0;broadcast(true)},250-(now-sendT));return}
+ sendT=now;R.emit('st',stateMsg()).catch(()=>{});
+}
+function sendSync(){
+ if(!R||MODE!=='host'||!S)return;
+ const k=Math.max(1,Math.ceil(S.i/140)),hu=[],hb=[];for(let j=0;j<=S.i;j+=k){hu.push(+num(S.hU[j],100).toFixed(2));hb.push(+num(S.hB[j],100).toFixed(2))}
+ broadcast(true);const rid=S.rid;setTimeout(()=>{if(R&&S&&S.rid===rid)R.emit('sync',{c:S.code,rid,k,hu,hb}).catch(()=>{})},300);
+ let size=0;const items=[];for(let j=S.newsLog.length-1;j>=0&&items.length<10;j--){const s=JSON.stringify(S.newsLog[j]).length;if(size+s>3500)break;size+=s;items.unshift(S.newsLog[j])}
+ R.emit('hist',{rid:S.rid,items}).catch(()=>{});
+}
+const ST={h:'hidden',a:'active',m:'met',x:'missed'};
+function applyState(d,msg){
+ if(!d||typeof d!=='object'||!CODE_RE.test(String(d.c)))return false;
+ if(MODE==='host'){ // two hosts: higher epoch wins, ties go to the smaller peer label
+  if(msg.sameTab)return false;
+  if(num(d.ep)>S.ep||(num(d.ep)===S.ep&&msg.peer<myPeer)){MODE='follow';clearInterval(timer);setPresence();say('Another host is running this room; you are now following.')}else return false;
+ }
+ if(S&&S.code===d.c&&S.rid===d.rid&&num(d.ep)===S.ep&&num(d.sq)<=num(S.lsq,-1))return false;
+ hostPeer=msg.peer;lastSt=Date.now();$('hostGone').classList.remove('on');
+ if(!S||S.code!==d.c||S.rid!==d.rid){if(R)setTimeout(()=>R&&R.emit('req',{k:'hist'}).catch(()=>{}),400);S=build(String(d.c),String(d.nm||'Team').slice(0,20),clamp(num(d.sp,25),5,80),!!d.tr);S.rid=String(d.rid).slice(0,12);$('news').innerHTML='';$('codeChip').textContent=S.code+' · '+NAMES[S.pre];if($('report').open)$('report').close()}
+ S.lsq=num(d.sq);
+ const prev=S.i,i=clamp(Math.floor(num(d.i)),0,T);
+ S.ep=num(d.ep);S.speed=clamp(num(d.sp,25),5,80);S.train=!!d.tr;S.i=i;S.running=!!d.run;
+ S.cash=num(d.cash,S.cash);if(Array.isArray(d.q)&&d.q.length===A.length)S.q=d.q.map(v=>Math.max(0,num(v)));if(Array.isArray(d.avg)&&d.avg.length===A.length)S.avg=d.avg.map(v=>num(v));
+ S.units=num(d.u,S.units)||S.units;S.bench=num(d.b,S.bench);S.peak=num(d.pk,S.peak);S.mdd=num(d.mdd);S.bPeak=num(d.bpk,S.bPeak);S.bmdd=num(d.bmdd);S.ddPk=num(d.dpk,S.ddPk);S.ddTr=num(d.dtr,S.ddTr);
+ if(Array.isArray(d.tl))S.tl=d.tl.filter(x=>Array.isArray(x)&&x.length===4).map(x=>[Math.floor(num(x[0])),clamp(Math.floor(num(x[1])),0,A.length-1),num(x[2])>0?1:-1,x[3]?1:0]);
+ S.breach=Math.floor(num(d.br));S.nTr=Math.floor(num(d.nt));S.costs=num(d.co);
+ if(Array.isArray(d.ms))S.md.forEach((m,j)=>{const s=ST[d.ms[j]];if(s)m.status=s});
+ if(Array.isArray(d.dU))S.dU=d.dU.slice(0,DAYS+1).map(v=>num(v,100));if(Array.isArray(d.dB))S.dB=d.dB.slice(0,DAYS+1).map(v=>num(v,100));
+ for(const e of S.ev)e.fired=e.t<=i?1:0;
+ const u=uv();let last=prev;while(last>0&&S.hU[last]==null)last--;
+ for(let t=last+1;t<i;t++){const f=(t-last)/(i-last);S.hU[t]=S.hU[last]+(u-S.hU[last])*f;S.hB[t]=S.hB[last]+(S.bench-S.hB[last])*f}
+ S.hU[i]=u;S.hB[i]=S.bench;
+ if(d.done&&!S.done){S.done=true;render();showReport(score());return true}
+ S.done=!!d.done;render();return true;
+}
+function activity(who,r){
+ const li=document.createElement('li');li.innerHTML=`<span class="d">${esc(S?(S.i?'W'+wkOf(S.i):'Pre'):'')}</span><span class="t"><b></b> <span></span></span>`;
+ li.querySelector('b').textContent=who;li.querySelector('.t span').textContent=r.txt;if(!r.ok)li.querySelector('.t span').className='dn';
+ const ul=$('activity');ul.querySelector('.ph')?.remove();ul.prepend(li);while(ul.children.length>30)ul.lastChild.remove();
+}
+function renderPeers(){
+ if(!R)return;const ps=R.peers();
+ const me=ps.find(p=>p.isMe&&p.sameTab);if(me)myPeer=me.peer;
+ $('peers').innerHTML=ps.filter(p=>p.kind==='viewer').map((p,k)=>{const pr=p.presence||{};return `<li><span class="dot ${p.peer===hostPeer||(p.sameTab&&MODE==='host')?'':'wait'}"></span><span class="t">${esc(String(pr.name||'Joining…').slice(0,20))} ${p.sameTab?'<span class="you">(you)</span>':''} ${pr.host?'<span class="host">HOST</span>':''}</span>${p.sameTab?`<select id="roleSel" aria-label="Your role">${['Captain','Trader','News analyst','Risk & compliance'].map(r=>`<option${r===myRole?' selected':''}>${esc(r)}</option>`).join('')}</select>`:`<span class="v" style="color:var(--mut)">${esc(String(pr.role||'').slice(0,24))}</span>`}</li>`}).join('')||'<li><span class="t">Connecting…</span></li>';
+ const rs=$('roleSel');if(rs)rs.onchange=()=>{myRole=rs.value;setPresence()};
+ $('connTxt').textContent=`${ps.filter(p=>p.kind==='viewer').length} online · room ${ROOM}`;
+}
+function setPresence(){if(R)R.presence({name:myName,role:myRole,host:MODE==='host'}).catch(()=>{})}
+async function enterRoom(code,asHost){
+ if(!roomApi){say('The live sync library did not load. Check your internet connection and reload.',1);return false}
+ if(R){try{await R.leave()}catch(e){}R=null}
+ ROOM=code;try{R=await roomApi.join('desk-'+code.toLowerCase())}catch(e){R=null;say('Could not reach the live sync service. Check your connection (some school or office Wi-Fi blocks it; try a phone hotspot), then try again.',1);return false}
+ MODE=asHost?'host':'follow';$('teamWin').hidden=false;$('roomChip').hidden=false;$('roomChip').textContent='Room '+code;
+ $('activity').innerHTML='<li class="ph"><span class="t" style="color:var(--mut)">Trades by anyone on the team show here.</span></li>';
+ R.on('st',m=>{if(applyState(m.data,m)&&MODE==='follow')renderPeers()});
+ R.on('sync',m=>{const d=m.data||{};if(MODE!=='follow'||!S||d.c!==S.code||d.rid!==S.rid)return;const k=Math.max(1,Math.floor(num(d.k,1)));
+  if(Array.isArray(d.hu)&&Array.isArray(d.hb))d.hu.forEach((v,j)=>{const t=j*k;if(t<=S.i){S.hU[t]=num(v,100);S.hB[t]=num(d.hb[j],100)}});
+  for(let t=1;t<S.i;t++){if(S.hU[t]==null){let a=t-1,b=t+1;while(b<S.i&&S.hU[b]==null)b++;const f=(t-a)/(b-a);S.hU[t]=S.hU[a]+((S.hU[b]??S.hU[a])-S.hU[a])*f;S.hB[t]=S.hB[a]+((S.hB[b]??S.hB[a])-S.hB[a])*f}}
+  render()});
+ R.on('hist',m=>{const d=m.data||{};if(MODE!=='follow'||!S||d.rid!==S.rid||!Array.isArray(d.items)||$('news').children.length>3)return;$('news').innerHTML='';for(const it of d.items.slice(-10))if(it&&it.o)addNews({n:num(it.o.n)||0,tag:String(it.o.tag||''),h:String(it.o.h||''),b:String(it.o.b||''),cls:String(it.o.cls||'')},String(it.tm||''),1)});
+ R.on('nw',m=>{const d=m.data||{};if(MODE!=='follow'||m.sameTab||!S||d.rid!==S.rid||!d.o)return;addNews({n:num(d.o.n)||0,tag:String(d.o.tag||''),h:String(d.o.h||''),b:String(d.o.b||''),cls:String(d.o.cls||'')},String(d.tm||''),1)});
+ R.on('act',m=>{const d=m.data||{};if(m.sameTab||MODE!=='follow')return;activity(String(d.who||'Someone'),{ok:!!d.ok,txt:String(d.txt||'')});if(String(d.who)===myName)say((d.ok?'Done: ':'Rejected: ')+String(d.txt||''),!d.ok)});
+ let lastHist=0;R.on('req',m=>{if(MODE!=='host'||m.sameTab||!S)return;const d=m.data||{};if(d.k==='hist'){if(Date.now()-lastHist>1500){lastHist=Date.now();sendSync()}return}apply(d,String(d.nm||'Teammate').slice(0,20))});
+ R.onPeers(ch=>{renderPeers();if(MODE==='host'&&ch.joined.some(p=>!p.sameTab))sendSync();
+  if(MODE==='follow'&&hostPeer&&ch.left.some(p=>p.peer===hostPeer))setTimeout(()=>{if(MODE==='follow'&&Date.now()-lastSt>2500)$('hostGone').classList.add('on')},3000)});
+ R.onConnection(c=>{$('connTxt').textContent=c?`connected · room ${ROOM}`:'reconnecting…'});
+ setPresence();renderPeers();
+ if(asHost){S.ep=(S.ep||0)+1;sendSync();broadcast(true)}
+ else say('Joined room '+code+'. Waiting for the host’s market…');
+ return true;
+}
+async function leaveRoom(){if(R){try{await R.leave()}catch(e){}}R=null;MODE='solo';ROOM='';hostPeer='';$('teamWin').hidden=true;$('roomChip').hidden=true;$('hostGone').classList.remove('on')}
+$('takeover').onclick=()=>{if(!S||!R)return;MODE='host';S.ep=(S.ep||0)+1;$('hostGone').classList.remove('on');setPresence();sendSync();broadcast(true);if(S.running){S.running=false;play()}say('You are now the host. The market keeps running from your screen.');renderPeers()};
+setInterval(()=>{if(MODE==='follow'&&R&&lastSt&&Date.now()-lastSt>8000&&!(S&&S.done))$('hostGone').classList.add('on')},2000);
+
+roomApi=window.WDLive||null;
+(async()=>{try{db=await window.claude?.use?.('db')}catch(e){db=null}
+ if(!db)return;const to=setTimeout(()=>{$('lbNote').textContent='The shared leaderboard can’t be reached yet; scores are kept on this device.'},10000);
+ try{db.collection('runs').orderBy('score','desc').limit(300).onSnapshot(s=>{if(!s.metadata.fromCache)clearTimeout(to);lbDocs=s.docs.map(d=>d.data()).filter(Boolean);renderLB()},()=>{clearTimeout(to);db=null;renderLB()})}catch(e){db=null}
+})();
+
+/* ---------- setup ---------- */
+let setupMode='host';
+function setMode(m){setupMode=m;document.querySelectorAll('[data-m]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.m===m)));
+ document.querySelectorAll('[data-for]').forEach(el=>{const f=el.dataset.for;el.hidden=f==='team'?m==='solo':f==='join'?m!=='join':m==='join'});
+ $('modeNote').textContent=m==='solo'?'Practise alone. Your score goes on the leaderboard.':m==='host'?'You run the market clock. Share the room code with your teammates so they can join from their computers.':'Enter the room code your host shared. You will see the host’s market and can trade the team portfolio.';
+ $('go').textContent=m==='join'?'Join room':m==='host'?'Open team room':'Open market'}
+document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+function newCode(p){return p+'-'+String(100000+Math.floor(Math.random()*900000))}
+function openSetup(cancelable){
+ try{$('pname').value=localStorage.getItem('wds-name')||''}catch(e){}
+ $('scen').value=S?.pre||'INFL';$('code').value=newCode($('scen').value);$('setupErr').textContent='';$('prole').value=myRole;
+ $('cancelSetup').hidden=!cancelable||!S;
+ if(S&&S.running&&MODE!=='follow')pause();
+ if(MODE!=='solo')setMode(MODE==='host'?'host':'join');
+ try{$('setup').showModal()}catch(e){$('setup').setAttribute('open','')}
+}
+$('scen').onchange=()=>{$('code').value=newCode($('scen').value)};
+$('code').oninput=()=>{const p=$('code').value.trim().toUpperCase().split('-')[0];if(NAMES[p])$('scen').value=p};
+$('cancelSetup').onclick=()=>$('setup').close();
+$('setupF').onsubmit=async e=>{
+ e.preventDefault();const name=$('pname').value.trim().slice(0,20);
+ if(!name){$('setupErr').textContent='Enter your name so teammates can tell you apart.';return}
+ myName=name;myRole=$('prole').value;try{localStorage.setItem('wds-name',name)}catch(er){}
+ if(setupMode==='join'){
+  const jc=$('jcode').value.trim().toUpperCase();if(!CODE_RE.test(jc)){$('setupErr').textContent='Room codes look like INFL-482193.';return}
+  if(!roomApi){$('setupErr').textContent='The live sync library did not load. Check your internet connection and reload.';return}
+  $('go').disabled=true;$('setupErr').textContent='Connecting…';clearInterval(timer);start(jc,name,25,false);S.running=false;const ok=await enterRoom(jc,false);$('go').disabled=false;if(!ok){$('setupErr').textContent=$('msg').textContent;return}$('setupErr').textContent='';$('setup').close();return;
+ }
+ const code=$('code').value.trim().toUpperCase();
+ if(!CODE_RE.test(code)){$('setupErr').textContent='Market codes look like INFL-4821: a scenario prefix, a dash, then digits.';return}
+ if(setupMode==='host'&&!roomApi){$('setupErr').textContent='The live sync library did not load. Check your internet connection and reload, or choose Solo.';return}
+ $('setup').close();
+ if(setupMode==='solo'){await leaveRoom();start(code,name,+$('speed').value,$('train').checked);return}
+ const keep=MODE==='host'&&R?ROOM:null;
+ start(code,name,+$('speed').value,$('train').checked);
+ if(keep){S.ep=Date.now()%1e9;sendSync();broadcast(true)}else if(!(await enterRoom(code,true))){MODE='solo';say('Could not reach the live sync service, so this run is solo. Check your connection and try Host again.',1)}
+};
+setMode('host');
+
+$('play').onclick=play;
+$('newRun').onclick=()=>{if(MODE==='follow'){setMode('join');}openSetup(true)};
+document.addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||document.querySelector('dialog[open]'))return;
+ if(e.code==='Space'&&e.target.tagName!=='BUTTON'){e.preventDefault();play()}else if(e.key==='b'||e.key==='B')setSide(1);else if(e.key==='s'||e.key==='S')setSide(-1)});
+rowsB.addEventListener('click',e=>{
+ const tr=e.target.closest('tr');if(!tr||e.target.tagName==='INPUT')return;const i=+tr.dataset.i;
+ sel=i;[...rowsB.children].forEach(r=>r.classList.toggle('sel',+r.dataset.i===i));
+ const v=parseAmt($('amt').value);
+ if(e.target.dataset.b!=null||e.target.dataset.s!=null){if(isNaN(v)||v<=0)return say('Enter an amount first.',1);act({k:'trade',i,usd:e.target.dataset.b!=null?v:-v})}
+ if(view==='as')$('chartTitle').textContent=A[sel].n+' (start = 100)';
+ render();
+});
+rowsB.addEventListener('input',tgSum);
+$('amt').oninput=ticketEst;
+$('amt').onkeydown=e=>{if(e.key==='Enter')$('tx').click()};
+$('sB').onclick=()=>setSide(1);$('sS').onclick=()=>setSide(-1);
+document.querySelectorAll('.chips button').forEach(b=>b.onclick=()=>{if(!S)return;$('amt').value=Math.round(nav()*+b.dataset.p).toLocaleString('en-US');ticketEst()});
+$('tx').onclick=()=>{const v=parseAmt($('amt').value);if(isNaN(v)||v<=0)return say('Enter an amount such as 500k.',1);act({k:'trade',i:sel,usd:side*v})};
+$('closePos').onclick=()=>act({k:'close',i:sel});
+$('fillB').onclick=()=>{for(const a of A)$('tg-'+a.k).value=BW[a.k]?BW[a.k]*100:'';tgSum()};
+$('fillC').onclick=()=>{if(!S)return;const w=W();for(const a of A)$('tg-'+a.k).value=w[a.k]>1e-4?(w[a.k]*100).toFixed(1):'';tgSum()};
+$('rebal').onclick=()=>{
+ const tg=A.map(a=>parseFloat($('tg-'+a.k).value));if(tg.every(isNaN))return say('Enter target weights first (or use Fill benchmark).',1);
+ act({k:'rebal',t:tg.map(v=>isNaN(v)?0:clamp(v/100,0,1))});
+};
+$('vPf').onclick=()=>{view='pf';$('vPf').setAttribute('aria-pressed','true');$('vAs').setAttribute('aria-pressed','false');$('chartTitle').textContent='Portfolio vs benchmark (start = 100)';draw()};
+$('vAs').onclick=()=>{view='as';$('vAs').setAttribute('aria-pressed','true');$('vPf').setAttribute('aria-pressed','false');$('chartTitle').textContent=A[sel].n+' (start = 100)';draw()};
+$('lbThis').onclick=()=>{lbMode='this';$('lbThis').setAttribute('aria-pressed','true');$('lbAll').setAttribute('aria-pressed','false');renderLB()};
+$('lbAll').onclick=()=>{lbMode='all';$('lbAll').setAttribute('aria-pressed','true');$('lbThis').setAttribute('aria-pressed','false');renderLB()};
+
+try{myName=localStorage.getItem('wds-name')||'Trader'}catch(e){}
+start(newCode('INFL'),myName,25,false);
+openSetup(false);
+}
+</script>
+</body>
+</html>
