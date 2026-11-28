@@ -143,7 +143,7 @@ Pages.floor = (() => {
     segWire($('#tk-side'), x => { side = +x; ticketInfo(); });
     if (!exam()) { segWire($('#t-speed'), x => (speed = +x)); $('#t-pause').onclick = togglePause; $('#t-next').onclick = skipPhase; }
     $('#t-fw').onclick = fundWeighting; $('#t-room').onclick = () => Room.panel(); Room.label();
-    if (s.teamHost && !Room.active) { s.teamHost = false; Room.host(s).then(() => Room.panel()).catch(e => toast(`${icon('xCircle', 16)} Couldn't open the team room: ${esc(e.message || 'no connection')}. Try the Team room button, or a phone hotspot.`, 'bad', 7000)); }
+    if (s.teamHost) { s.teamHost = false; Room.host(s).then(() => Room.panel()).catch(e => toast(`${icon('xCircle', 16)} Couldn't open the team room: ${esc(e.message || 'no connection')}. Try the Team room button, or a phone hotspot.`, 'bad', 7000)); }
     $('#t-sound').onclick = () => { Sound.set(!Sound.on()); $('#t-sound').innerHTML = icon(Sound.on() ? 'volume' : 'volumeOff', 17); refreshNav(); Sound.ambient(true); };
     $('#t-end').onclick = endEarly;
     $('#t-lim').onclick = $('#t-stop').onclick = () => { $('#bk-tab').set('risk'); bookTab = 'risk'; renderBook(); };

@@ -47,7 +47,8 @@ const Room = (() => {
     else if (r.k === 'fin') sess.finish(true);
   }
   function onHello(h) {
-    if (role !== 'host' || !sess || !h) return;
+    if (role !== 'host' || !h) return;
+    if (!sess) { send('W', { to: h.who }); return; }      // room is open, the host is still in the briefing
     const from = Math.max(0, Math.min(log.length, h.from | 0));
     send('H', { ep, to: h.who, from, cfg: cfgOf(sess), durs: sess.phases.map(p => p.dur), strategy: sess.strategy || null, log: log.slice(from), clock: clockMsg() });
   }
@@ -142,21 +143,29 @@ const Room = (() => {
     offs.push(api.on('R', ev => onRequest(ev.data)));
     offs.push(api.on('Hq', ev => !ev.isMe && onHello(ev.data)));
     offs.push(api.on('H', ev => !ev.isMe && onHelloReply(ev.data)));
-    offs.push(api.onPeers(ch => { peersN = ch.peers.length; label(); }));
+    offs.push(api.on('W', ev => { if (!ev.isMe && ev.data && ev.data.to === ME && joinWait) { waiting = true; status(); } }));
+    offs.push(api.onPeers(ch => { peersN = ch.peers.length; label(); status(); }));
     clearInterval(watchT); watchT = setInterval(watch, 1000);
   }
   function watch() {
     if (!api) return;
     if (sess && App.session !== sess) { leave(); return; }      // the year ended (or a new run started)
+    if (role === 'host' && !sess && !App.pending) { leave(); return; }   // host went back without starting
     label();
   }
   function hostOffline() { return role === 'follower' && sess && sess.started && !sess.finished && Date.now() - lastClock > 8000; }
 
-  let joinWait = null;
+  let joinWait = null, waiting = false, statusFn = null;
+  function status() { if (statusFn) statusFn(waiting ? `Connected to room ${code} (${peersN} online). Waiting for the host to finish the briefing; the trading floor opens here automatically.` : 'Connecting to the room…'); }
+  async function prepare() {
+    if (api && role === 'host' && !sess) return code;      // already open from the Lobby
+    if (api) leave();
+    await connect(newCode()); role = 'host'; sess = null; label(); return code;
+  }
   async function host(s) {
-    if (api) return;
-    if (s.R.rfq) { toast(`${icon('info', 16)} Team rooms support the AmplifyME AM format only.`, 'warn', 4000); return; }
-    await connect(newCode());
+    if (api && !(role === 'host' && !sess)) return;
+    if (s.R.rfq) { toast(`${icon('info', 16)} Team rooms support the AmplifyME AM format only.`, 'warn', 4000); if (api) leave(); return; }
+    if (!api) await connect(newCode());
     role = 'host'; sess = s; ep = Date.now(); log = [];
     if (s.started) log.push({ k: 'start', el: 0 });      // hosting mid-run: teammates catch up from the trade list below
     for (const t of s.trades) log.push({ k: 'o', el: t.real, id: t.asset, side: t.side, qty: t.qty, t: { px: t.px, commission: t.commission, venue: t.venue }, pr: {} });
@@ -165,10 +174,11 @@ const Room = (() => {
   function join(c) {
     return new Promise(async (res, rej) => {
       try { await connect(c); } catch (e) { rej(e); return; }
-      role = 'follower'; sess = null; ep = 0; joinWait = res;
+      role = 'follower'; sess = null; ep = 0; joinWait = res; waiting = false;
       const ask = () => { if (joinWait) send('Hq', { who: ME, from: 0 }); };
       ask(); const it = setInterval(ask, 2000);
-      setTimeout(() => { clearInterval(it); if (joinWait) { joinWait = null; leave(); rej(new Error(`No host answered in room ${c}. Check the code, and that the host has the trading floor open.`)); } }, 15000);
+      const to = setInterval(() => { if (!joinWait) { clearInterval(it); clearInterval(to); } }, 1000);
+      setTimeout(() => { if (joinWait && waiting) return; clearInterval(it); if (joinWait) { joinWait = null; leave(); rej(new Error(`No host answered in room ${c}. Check the code, and that the host has the trading floor open.`)); } }, 15000);
     });
   }
   function takeover() {
@@ -190,6 +200,9 @@ const Room = (() => {
 
   /* ---------------- UI ---------------- */
   function label() {
+    const bar = document.getElementById('room-bar');
+    if (bar) bar.innerHTML = api ? `${icon('users', 16)} <span><b>Team room ${code}</b> · ${peersN} online. Send teammates the code or link now; they'll wait here and join the trading floor with you.</span><input class="input mono" readonly value="${esc(shareLink())}" onclick="this.select()"><b class="mono rb-code">${code}</b>` : '';
+    if (bar) bar.hidden = !api;
     const b = document.getElementById('t-room'); if (!b) return;
     const txt = !api ? 'Team room' : hostOffline() ? `Room ${code} · host offline` : `Room ${code} · ${peersN} online`;
     const html = `${icon('users', 15)} ${txt}`;
@@ -236,11 +249,12 @@ const Room = (() => {
         $('#jn-go').disabled = true; $('#jn-msg').textContent = 'Connecting to the room…';
         try { await join(c); } catch (e) { $('#jn-go').disabled = false; $('#jn-msg').textContent = e.message || 'Could not join.'; }
       };
+      statusFn = t => { const el = document.getElementById('jn-msg'); if (el) el.textContent = t; };
       $('#jn-go').onclick = go; $('#jn-code').onkeydown = e => { if (e.key === 'Enter') go(); };
       if (pre.length === 6) go();
     },
     destroy() {},
   };
 
-  return { host, join, leave, takeover, panel, label, page, get active() { return !!api; }, get role() { return role; }, get code() { return code; } };
+  return { prepare, host, join, leave, takeover, panel, label, page, get active() { return !!api; }, get role() { return role; }, get code() { return code; } };
 })();

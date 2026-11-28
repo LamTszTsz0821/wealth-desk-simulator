@@ -8,6 +8,7 @@ Pages.brief = (() => {
 
   function defaults() { const w = {}; for (const a of fund.assets) w[a.id] = +(fund.bench[a.id] * 100 * .97).toFixed(2); return w; }
   function render(v) {
+    setTimeout(() => Room.label(), 0);
     const P = App.pending;
     scn = P.scenario || (P.scenario = getScenario(P.scenarioId)); fund = UNIVERSE[scn.fund];
     W = P.weights || (P.weights = defaults());
@@ -17,6 +18,7 @@ Pages.brief = (() => {
     const groups = fund.classOrder.map(k => [k, fund.assets.filter(a => a.cls === k)]).filter(([, l]) => l.length);
     v.innerHTML = `
     <div class="page brief">
+      <div class="room-bar" id="room-bar" hidden></div>
       <header class="brief-head">
         <div>
           <div class="eyebrow">${esc(scn.code)} · ${fund.name} · ${P.mode === 'exam' ? 'Exam mode' : 'Training mode'} · ${fund.quarters}×${fmtMin(P.quarterMin)} quarters, ${fmtMin(P.breakMin)} breaks</div>

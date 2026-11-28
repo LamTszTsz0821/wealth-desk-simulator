@@ -102,8 +102,13 @@ Pages.home = (() => {
     const lh = () => ($('#len-help').textContent = LENS[st.len].label + (st.len === 'real' ? ' (the real competition timing)' : ', same year, compressed'));
     segWire($('#s-len'), x => { st.len = x; save(); lh(); }); lh();
     segWire($('#s-brief'), x => { st.brief = +x; save(); });
-    $('#go').onclick = () => {
+    $('#go').onclick = async () => {
       if (st.players === 'join') { location.hash = '#/join'; return; }
+      if (st.players === 'team') {
+        const b = $('#go'); b.disabled = true; b.textContent = 'Opening team room…';
+        try { await Room.prepare(); }
+        catch (e) { b.disabled = false; ph(); toast(`${icon('xCircle', 16)} Couldn't open a team room: ${esc(e.message || 'no connection')}. Try a phone hotspot, or pick Solo.`, 'bad', 7000); return; }
+      } else if (Room.active && Room.role === 'host') Room.leave();
       let scenarioId = st.scn;
       if (st.scn === 'random') scenarioId = `rnd-${st.fund}-${Math.floor(Math.random() * 1e9)}`;
       const L = LENS[st.len];

@@ -228,3 +228,9 @@
 .lm small { font-weight: 500; color: var(--text-2); }
 .lm.top { grid-column: 1 / -1; padding: 8px; background: rgba(60,50,110,.08); color: var(--text-2); }
 .lm.wide2 { grid-column: 2 / 4; }
+
+/* team room bar on the briefing */
+.room-bar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid var(--ok); background: var(--ok-soft); border-radius: var(--r); }
+.room-bar span { flex: 1; }
+.room-bar .input { width: 300px; height: 34px; font-size: 12px; }
+.room-bar .rb-code { font-size: 24px; letter-spacing: .12em; color: var(--ok); }
