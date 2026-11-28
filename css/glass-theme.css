@@ -1,0 +1,100 @@
+/* ==========================================================================
+   AM Sim Trainer: "Liquid Glass" theme (html[data-theme="glass"], the default)
+   Ported from Iris Academy / Iris v4 css/glass-theme.css. Refraction, blur and
+   tint come from liquid-glass-js (WebGL), wired up in js/core/glass-theme.js.
+   The sidebar and main panel are real WebGL glass; panels inside the terminal
+   are CSS translucency with a specular rim, which keeps the WebGL context count small.
+   ========================================================================== */
+#lg-wall { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; display: none; }
+html[data-theme="glass"] #lg-wall { display: block; }
+html[data-theme="glass"] #app { position: relative; z-index: 1; }
+.lg-layer.glass-container { position: absolute; inset: 0; z-index: -1; display: block; padding: 0; gap: 0;
+  overflow: hidden; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .25s ease; }
+.lg-layer.ready { opacity: 1; }
+.lg-layer canvas { box-shadow: none !important; }
+.lg-layer::after { content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 38%), linear-gradient(var(--lg-veil), var(--lg-veil));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9), inset 0 0 0 1px rgba(255,255,255,.42), inset 0 -1px 0 rgba(255,255,255,.3); }
+
+html[data-theme="glass"] {
+  --bg: transparent; --sidebar: transparent;
+  --card: rgba(255,255,255,.58); --card-2: rgba(255,255,255,.4);
+  --hover: rgba(255,255,255,.5); --active: rgba(255,255,255,.75); --field: rgba(255,255,255,.62);
+  --line: rgba(40,30,90,.09); --line-2: rgba(40,30,90,.15);
+  --text: #16151c; --text-2: #464553; --text-3: #6a6978;
+  --accent-soft: rgba(92,78,245,.13);
+  --ok-soft: rgba(18,164,107,.14); --bad-soft: rgba(229,72,77,.12); --warn-soft: rgba(232,147,12,.15);
+  --up-soft: rgba(15,157,99,.13); --down-soft: rgba(224,68,74,.12);
+  --grid: rgba(40,30,90,.08);
+  --menu-shadow: 0 1px 1px rgba(30,20,80,.06), 0 22px 50px -14px rgba(30,20,80,.38);
+  --lg-float: 0 1px 1px rgba(30,20,80,.05), 0 20px 44px -18px rgba(30,20,80,.4);
+  --lg-chip: rgba(255,255,255,.66);
+  --lg-rim: inset 0 1px 0 rgba(255,255,255,.95), inset 0 0 0 1px rgba(255,255,255,.55);
+}
+html[data-theme="glass"] body { background: #ddd6fb; }
+html[data-theme="glass"] ::selection { background: rgba(112,52,245,.22); }
+
+/* how much white sits on each kind of glass (higher = calmer, more legible) */
+html[data-theme="glass"] .sidebar { --lg-veil: rgba(255,255,255,.34); }
+html[data-theme="glass"] .main { --lg-veil: rgba(255,255,255,.5); }
+html[data-theme="glass"] .main.dense { --lg-veil: rgba(255,255,255,.42); }
+html[data-theme="glass"] .flash { --lg-veil: rgba(255,255,255,.7); }
+html[data-theme="glass"] .menu, html[data-theme="glass"] .modal, html[data-theme="glass"] .ov-card { --lg-veil: rgba(255,255,255,.7); }
+
+/* floating layout */
+html[data-theme="glass"] .shell { padding: 12px; gap: 12px; }
+html[data-theme="glass"] .sidebar { position: relative; isolation: isolate; border: 0; border-radius: 24px; box-shadow: var(--lg-float); }
+html[data-theme="glass"] .main { isolation: isolate; border-radius: 24px; box-shadow: var(--lg-float); overflow: hidden; }
+html[data-theme="glass"] .sb-item.active { box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 1px 3px rgba(30,20,80,.08); }
+html[data-theme="glass"] .sb-foot { border-top-color: var(--line); }
+
+/* translucent cards with a specular rim */
+html[data-theme="glass"] .card, html[data-theme="glass"] .panel, html[data-theme="glass"] .tile,
+html[data-theme="glass"] .scn-card, html[data-theme="glass"] .metric, html[data-theme="glass"] .region,
+html[data-theme="glass"] .quote { border-color: rgba(255,255,255,.72); box-shadow: var(--lg-rim), 0 1px 2px rgba(30,20,80,.05); }
+html[data-theme="glass"] .panel { background: rgba(255,255,255,.6); }
+html[data-theme="glass"] .scn-card:hover, html[data-theme="glass"] .card.lift:hover { background: rgba(255,255,255,.74); box-shadow: var(--lg-rim), 0 14px 30px -16px rgba(30,20,80,.35); }
+html[data-theme="glass"] .scn-card.sel { background: rgba(255,255,255,.86); }
+
+/* controls */
+html[data-theme="glass"] .btn-outline, html[data-theme="glass"] .input, html[data-theme="glass"] .select-in,
+html[data-theme="glass"] .chip-btn, html[data-theme="glass"] .kbd, html[data-theme="glass"] .icon-btn.boxed { background: var(--lg-chip); border-color: rgba(255,255,255,.75); box-shadow: 0 1px 2px rgba(30,20,80,.06); }
+html[data-theme="glass"] .btn-outline:hover, html[data-theme="glass"] .chip-btn:hover { background: rgba(255,255,255,.85); }
+html[data-theme="glass"] .input:focus, html[data-theme="glass"] .select-in:focus { border-color: var(--accent); background: rgba(255,255,255,.88); }
+html[data-theme="glass"] .btn-primary { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 4px 12px -4px rgba(92,78,245,.6); }
+html[data-theme="glass"] .btn-buy { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 4px 12px -5px rgba(15,157,99,.7); }
+html[data-theme="glass"] .btn-sell { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 4px 12px -5px rgba(224,68,74,.7); }
+html[data-theme="glass"] .seg { background: rgba(60,50,110,.08); box-shadow: inset 0 1px 2px rgba(30,20,80,.06); }
+html[data-theme="glass"] .seg .pill { background: rgba(255,255,255,.92); box-shadow: inset 0 1px 0 #fff, 0 1px 3px rgba(30,20,80,.14); }
+html[data-theme="glass"] .progress, html[data-theme="glass"] .bar-track { background: rgba(60,50,110,.12); }
+html[data-theme="glass"] .scrim { background: rgba(25,18,60,.18); }
+html[data-theme="glass"] .tbl tr:hover td { background: rgba(255,255,255,.38); }
+html[data-theme="glass"] .tbl tr.sel td { background: rgba(255,255,255,.62); }
+html[data-theme="glass"] .term-top { background: rgba(255,255,255,.34); border-bottom-color: rgba(255,255,255,.6); }
+
+/* floating surfaces (flash, overlays, modals, menus): CSS frosted glass with the same veil + specular rim.
+   (WebGL glass is reserved for the sidebar and main panel, see js/core/glass-theme.js.) */
+html[data-theme="glass"] .menu, html[data-theme="glass"] .modal, html[data-theme="glass"] .ov-card, html[data-theme="glass"] .flash {
+  background: var(--lg-veil); border: 0; isolation: isolate; -webkit-backdrop-filter: blur(24px) saturate(1.7); backdrop-filter: blur(24px) saturate(1.7);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.95), inset 0 0 0 1px rgba(255,255,255,.55), 0 24px 60px -20px rgba(30,20,80,.45); }
+html[data-theme="glass"] .flash.sev3 { --lg-veil: rgba(255,240,240,.86); }
+
+/* no WebGL: CSS frosted-glass fallback */
+html[data-theme="glass"].lg-fallback .sidebar, html[data-theme="glass"].lg-fallback .main {
+  background: var(--lg-veil); -webkit-backdrop-filter: blur(22px) saturate(1.7); backdrop-filter: blur(22px) saturate(1.7);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9), inset 0 0 0 1px rgba(255,255,255,.42), var(--lg-float); }
+
+/* appearance previews */
+.mode-card { width: 132px; text-align: center; font-size: 13.5px; color: var(--text-2); }
+.mode-card .pv { height: 78px; border-radius: 12px; border: 1px solid var(--line-2); margin-bottom: 7px; padding: 9px; display: flex; gap: 6px; }
+.mode-card.on .pv { border-color: transparent; box-shadow: 0 0 0 2px var(--accent); }
+.mode-card.on { color: var(--text); font-weight: 500; }
+.pv .s { width: 28%; border-radius: 5px; } .pv .m { flex: 1; border-radius: 5px; }
+.pv.light { background: #fff; } .pv.light .s { background: #f2f2f5; } .pv.light .m { background: #fafafb; border: 1px solid #ececf0; }
+.pv.glass { background: linear-gradient(135deg, #7034f5, #c26dff 45%, #53a7ea); border-color: transparent; }
+.pv.glass .s { background: rgba(255,255,255,.42); box-shadow: inset 0 1px 0 rgba(255,255,255,.9); }
+.pv.glass .m { background: rgba(255,255,255,.62); box-shadow: inset 0 1px 0 rgba(255,255,255,.9); }
+.wall-pick { display: flex; gap: 10px; }
+.wall-pick button { width: 54px; height: 34px; border-radius: 9px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.5); transition: transform .12s; }
+.wall-pick button:hover { transform: translateY(-1px); }
+.wall-pick button.on { box-shadow: inset 0 0 0 1px rgba(255,255,255,.5), 0 0 0 2px #fff, 0 0 0 4px var(--accent); }

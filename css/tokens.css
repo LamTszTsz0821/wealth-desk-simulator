@@ -1,0 +1,93 @@
+/* ==========================================================================
+   AM Sim Trainer — design tokens (from Iris Academy)
+   Brand + neutrals come straight from Iris v2–v5 (css/styles.css there).
+   Motion tokens come from Iris_Motion_References/css/iris-motion-tokens.css.
+   Game colours (streak / XP / hearts / gems / right / wrong) are new and tuned
+   to sit quietly next to the violet → sky brand gradient.
+   Change a colour here and it changes everywhere (both themes).
+   ========================================================================== */
+@import url('../assets/fonts/fonts.css');
+
+:root {
+  /* type */
+  --font: 'Google Sans Flex', 'Google Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --serif: 'Newsreader', 'Iowan Old Style', Georgia, serif;
+  --mono: 'Google Sans Code', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* brand (Iris) */
+  --violet: #7034f5;
+  --indigo: #5c4ef5;
+  --sky: #53a7ea;
+  --grad: linear-gradient(90deg, #7034f5 0%, #5c4ef5 50%, #53a7ea 100%);
+  --grad-diag: linear-gradient(135deg, #7034f5 0%, #5c4ef5 50%, #53a7ea 100%);
+  --accent: #5c4ef5;
+  --accent-soft: #f1effe;
+
+  /* neutrals (Iris light) */
+  --bg: #ffffff;
+  --sidebar: #fafafb;
+  --card: #ffffff;
+  --card-2: #fafafb;
+  --hover: #f3f3f6;
+  --active: #ededf2;
+  --field: #f4f4f7;
+  --line: #ececf0;
+  --line-2: #e0e0e6;
+  --text: #1c1b22;
+  --text-2: #5f5e6b;
+  --text-3: #9a99a6;
+
+  /* game + feedback colours */
+  --ok: #12a46b;        --ok-soft: #e6f7ef;   --ok-line: #b7e8d2;
+  --bad: #e5484d;       --bad-soft: #fdeeee;  --bad-line: #f7c9cb;
+  --warn: #e8930c;      --warn-soft: #fff5e5;
+  --flame: linear-gradient(160deg, #ffc247 0%, #ff8a3d 55%, #ff5a5f 100%);
+  --flame-c: #ff7a3d;
+  --xp: #f2a20c;        --xp-grad: linear-gradient(135deg, #ffd15c, #f5a524);
+  --heart: #f0456a;     --heart-grad: linear-gradient(135deg, #ff7a9a, #f0456a);
+  --gem: #1fa8e0;       --gem-grad: linear-gradient(135deg, #7be0ff, #2d8cf0);
+  --gold: #f2b52b;      --gold-grad: linear-gradient(135deg, #ffe08a, #f2b52b 60%, #e08a00);
+  --locked: #c9c8d3;
+
+  /* chart palette (used by js/charts/svgchart.js via CSS classes) */
+  --c1: #5c4ef5; --c2: #53a7ea; --c3: #ff7a59; --c4: #12a46b; --c5: #c26dff; --c6: #f2a20c;
+  --grid: #ededf2; --axis: #9a99a6;
+
+  /* shape + elevation */
+  --r-sm: 8px; --r: 12px; --r-lg: 16px; --r-xl: 22px; --r-pill: 999px;
+  --shadow-1: 0 1px 2px rgba(20,16,50,.05);
+  --shadow-2: 0 1px 2px rgba(20,16,50,.04), 0 10px 28px -12px rgba(20,16,50,.18);
+  --menu-shadow: 0 1px 2px rgba(20,16,50,.04), 0 12px 32px -8px rgba(20,16,50,.14);
+  --sidebar-w: 248px;
+
+  /* motion (Iris motion tokens) */
+  --ease: cubic-bezier(.2,.8,.2,1);
+  --d-instant: 100ms; --d-fast: 150ms; --d-base: 220ms; --d-slow: 320ms; --d-page: 400ms;
+  --ease-out: cubic-bezier(.23, 1, .32, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(.77, 0, .175, 1);
+  --ease-emph-decel: cubic-bezier(.05, .7, .1, 1);
+  --spring-snappy: cubic-bezier(.3, 1.25, .5, 1);   --spring-snappy-ms: 380ms;
+  --spring-bouncy: cubic-bezier(.34, 1.56, .64, 1); --spring-bouncy-ms: 560ms;
+  --spring-gentle: cubic-bezier(.23, 1, .32, 1);    --spring-gentle-ms: 480ms;
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --spring-snappy: linear(0, 0.0539, 0.1737, 0.3201, 0.4681, 0.5957, 0.7119, 0.8058, 0.878, 0.931, 0.9662, 0.9911, 1.0063, 1.0144, 1.0176, 1.018, 1.0166, 1.0142, 1.0115, 1.009, 1.0066, 1.0046, 1.0031, 1.0019, 1.001, 1.0004, 1.0001, 1);
+    --spring-snappy-ms: 450ms;
+    --spring-bouncy: linear(0, 0.0444, 0.1544, 0.3044, 0.4723, 0.6305, 0.7859, 0.9192, 1.0253, 1.0987, 1.1498, 1.1759, 1.1813, 1.1717, 1.1506, 1.1228, 1.0922, 1.0636, 1.0358, 1.0121, 0.9935, 0.9807, 0.972, 0.9678, 0.9672, 0.9692, 0.9732, 0.9783, 0.9839, 0.9891, 0.9941, 0.9982, 1.0015, 1.0037, 1.0052, 1.0059, 1.0059, 1.0055, 1.0048, 1.0038, 1.0028, 1.0019, 1.001, 1.0002, 0.9997, 0.9993, 0.999, 0.9989, 0.9989, 0.999, 0.9992, 0.9993, 0.9995, 1);
+    --spring-bouncy-ms: 890ms;
+    --spring-gentle: linear(0, 0.0226, 0.0762, 0.1473, 0.2268, 0.3085, 0.3884, 0.4595, 0.5295, 0.5931, 0.6499, 0.7003, 0.7444, 0.7807, 0.8142, 0.8431, 0.8678, 0.8888, 0.9067, 0.9211, 0.934, 0.9449, 0.9541, 0.9618, 0.9682, 0.9733, 0.9779, 0.9817, 0.9848, 0.9874, 0.9896, 0.9913, 0.9928, 0.9941, 0.9951, 0.996, 0.9967, 0.9972, 0.9977, 0.9981, 0.9985, 0.9987, 0.999, 1);
+    --spring-gentle-ms: 720ms;
+  }
+}
+
+/* ---------- trading additions ---------- */
+:root {
+  --up: #0f9d63;   --up-soft: #e3f6ee;
+  --down: #e0444a; --down-soft: #fdecec;
+  --flash-up: rgba(15,157,99,.22); --flash-down: rgba(224,68,74,.2);
+  --bench: #9a99a6;
+  --sev3: #e0444a; --sev2: #e8930c; --sev1: #5c4ef5; --sev0: #9a99a6;
+  --rail-w: 76px;
+}
