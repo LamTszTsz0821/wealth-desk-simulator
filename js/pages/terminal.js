@@ -85,6 +85,7 @@ Pages.floor = (() => {
           <div class="st" id="t-ff" title="Rejected orders, limit-breaking trades, quick reversals"><span>Order errors</span><b class="mono" id="t-ffv">0</b></div>
         </div>
         <div class="tt-ctl">
+          <button class="btn btn-outline sm" id="t-room" title="Trade this fund together with your team">${icon('users', 15)} Team room</button>
           <button class="btn btn-outline sm" id="t-fw" title="Fund Weighting (W)">${icon('sliders', 15)} Fund Weighting</button>
           ${exam() ? '' : `<button class="btn btn-primary sm" id="t-next" title="End this phase now (training only)" hidden>${icon('play', 14)} <span id="t-next-l">Start Q1</span></button><button class="icon-btn boxed" id="t-pause" title="Pause (Space)">${icon('pause', 17)}</button>${seg('t-speed', [[0.5, '½×'], [1, '1×'], [2, '2×'], [4, '4×']], speed)}`}
           <button class="icon-btn boxed" id="t-sound" title="Sound">${icon(Sound.on() ? 'volume' : 'volumeOff', 17)}</button>
@@ -141,7 +142,7 @@ Pages.floor = (() => {
     segWire($('#n-filter'), x => { newsFilter = x; renderNews(); });
     segWire($('#tk-side'), x => { side = +x; ticketInfo(); });
     if (!exam()) { segWire($('#t-speed'), x => (speed = +x)); $('#t-pause').onclick = togglePause; $('#t-next').onclick = skipPhase; }
-    $('#t-fw').onclick = fundWeighting;
+    $('#t-fw').onclick = fundWeighting; $('#t-room').onclick = () => Room.panel(); Room.label();
     $('#t-sound').onclick = () => { Sound.set(!Sound.on()); $('#t-sound').innerHTML = icon(Sound.on() ? 'volume' : 'volumeOff', 17); refreshNav(); Sound.ambient(true); };
     $('#t-end').onclick = endEarly;
     $('#t-lim').onclick = $('#t-stop').onclick = () => { $('#bk-tab').set('risk'); bookTab = 'risk'; renderBook(); };

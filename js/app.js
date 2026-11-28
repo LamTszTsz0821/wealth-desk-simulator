@@ -121,7 +121,7 @@ function route() {
   const h = (location.hash.slice(1) || '/').split('?')[0];
   const parts = h.split('/').filter(Boolean);
   const name = parts[0] || 'home';
-  const map = { home: Pages.home, brief: Pages.brief, floor: Pages.floor, results: Pages.results, history: Pages.history, guide: Pages.guide };
+  const map = { home: Pages.home, brief: Pages.brief, floor: Pages.floor, results: Pages.results, history: Pages.history, guide: Pages.guide, join: Room.page };
   let page = map[name] || Pages.home;
   if (name === 'brief' && !App.pending) page = Pages.home;
   if (name === 'floor' && !App.session) page = App.pending ? Pages.brief : Pages.home;

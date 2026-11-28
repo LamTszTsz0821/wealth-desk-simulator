@@ -56,8 +56,16 @@ build step. Use a laptop/desktop screen (1280px wide or more). Scores are saved 
 Scoring formulas and weights · contract sizes (modelled on the real futures: ES $50, TY $1,000, GC 100oz, CL 1,000bbl, 6E €125k) · market-impact strength · OIL ($91.50) and EURUSD (1.3360) start prices · the year replayed (2011 inferred) · "$500k per trade" measured per position vs average cost · ±10% applied per instrument as well as per class · length of the construction phase · bid/ask spreads · peers are simulated, not real players.
 All of these are listed in the app under **Guide → What's a guess**.
 
+
+## Team rooms (one shared fund)
+1. The host sets up a run as usual and goes to the **Trading floor**, then clicks **Team room → Host this run**.
+2. Share the 6-digit code or the link (`…/#/join/123456`). Teammates open the link, or click **Join a team room** on the Lobby and type the code.
+3. Everyone sees the same prices, news, clock and portfolio. Anyone can trade; every order goes into the one shared fund. Pause, skip and End (training) also apply to everyone.
+4. Keep the host's tab open (it runs the clock). If the host drops, the Team room button shows "host offline" and any teammate can **Take over as host** with no loss of state.
+
+Sync uses free public MQTT brokers (`js/sim/live-sync.js`), so there's no server or account. Some school or office Wi-Fi blocks it; a phone hotspot usually works. Room codes are random and the room only carries game data.
+
 ## Not done yet (optional, ask first)
-- Live team rooms (porting `reference/wealth-desk-simulator/live-sync.js`, which uses public MQTT brokers).
 - Hosting on GitHub Pages.
 
 ## Files

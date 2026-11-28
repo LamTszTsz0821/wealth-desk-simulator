@@ -73,6 +73,7 @@ Pages.home = (() => {
           </div>
           <div class="start-row">
             <div class="faint sm">${icon('keyboard', 14)} Terminal shortcuts: <span class="kbd">B</span> buy <span class="kbd">S</span> sell <span class="kbd">Q</span> quantity <span class="kbd">Enter</span> send <span class="kbd">W</span> Fund Weighting <span class="kbd">1</span>–<span class="kbd">0</span> select instrument</div>
+            <a class="btn btn-outline lg" href="#/join">${icon('users', 18)} Join a team room</a>
             <button class="btn btn-primary lg" id="go">Go to briefing ${icon('arrowRight', 18)}</button>
           </div>
         </div>

@@ -272,3 +272,7 @@ html[data-theme="light"] .n-item { background: var(--card-2); }
 .p-ticket .tk > * { flex: none; }
 .p-ticket .tk-info { flex: 1 1 auto; min-height: 44px; overflow-y: auto; align-content: start; }
 .p-ticket #rfq { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+
+/* team room button */
+#t-room.room-on { border-color: var(--ok); color: var(--ok); }
+#t-room.room-warn { border-color: var(--warn); color: var(--warn); }
