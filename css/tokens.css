@@ -90,4 +90,5 @@
   --bench: #9a99a6;
   --sev3: #e0444a; --sev2: #e8930c; --sev1: #5c4ef5; --sev0: #9a99a6;
   --rail-w: 76px;
+  --price-line: #5c4ef5; --price-fill: rgba(92,78,245,.13);
 }

@@ -1,0 +1,94 @@
+/* ==========================================================================
+   "AmplifyME" theme (html[data-theme="amplify"], the default).
+   Dark navy trading terminal modelled on the real AmplifyME platform screen:
+   flat navy panels, blue active tabs, white text, green/red prices,
+   an orange Fund Weighting button, square corners, no glass or gradients.
+   ========================================================================== */
+html[data-theme="amplify"] {
+  --font: 'Helvetica Neue', Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+  --mono: 'Helvetica Neue', Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+  --serif: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+  --violet: #1e9be9; --indigo: #1e9be9; --sky: #1e9be9;
+  --grad: #1a8fd8; --grad-diag: #1a8fd8;
+  --accent: #1e9be9; --accent-soft: rgba(30,155,233,.16);
+
+  --bg: #0f2335;
+  --sidebar: #0a1a29;
+  --card: #122a3f;
+  --card-2: #10263a;
+  --hover: #17344d;
+  --active: #1c3d5b;
+  --field: #0c1f30;
+  --line: #1b3851;
+  --line-2: #27496a;
+  --text: #f1f5f9;
+  --text-2: #a7bccf;
+  --text-3: #6f8aa3;
+
+  --ok: #2bd46c;   --ok-soft: rgba(43,212,108,.14);  --ok-line: rgba(43,212,108,.4);
+  --bad: #ff4848;  --bad-soft: rgba(255,72,72,.14);  --bad-line: rgba(255,72,72,.4);
+  --warn: #ffb21e; --warn-soft: rgba(255,178,30,.14);
+  --up: #2bd46c;   --up-soft: rgba(43,212,108,.13);
+  --down: #ff4848; --down-soft: rgba(255,72,72,.13);
+  --flash-up: rgba(43,212,108,.25); --flash-down: rgba(255,72,72,.25);
+  --bench: #2bd46c;
+  --sev3: #ff4848; --sev2: #ffb21e; --sev1: #1e9be9; --sev0: #6f8aa3;
+
+  --c1: #f5b400; --c2: #1e9be9; --c3: #ff7a59; --c4: #2bd46c; --c5: #b48cff; --c6: #ffb21e;
+  --grid: rgba(255,255,255,.14); --axis: #6f8aa3;
+  --price-line: #f5b400; --price-fill: rgba(245,180,0,.08);
+
+  --r-sm: 2px; --r: 3px; --r-lg: 3px; --r-xl: 4px; --r-pill: 3px;
+  --shadow-1: none; --shadow-2: 0 8px 24px rgba(0,0,0,.35); --menu-shadow: 0 8px 24px rgba(0,0,0,.45);
+  color-scheme: dark;
+}
+html[data-theme="amplify"] body { background: var(--bg); color: var(--text); font-variant-numeric: tabular-nums; }
+html[data-theme="amplify"] ::selection { background: rgba(30,155,233,.35); }
+
+/* shell: flat, square */
+html[data-theme="amplify"] .sidebar { background: var(--sidebar); border-color: var(--line); }
+html[data-theme="amplify"] .main { background: var(--bg); }
+html[data-theme="amplify"] .card, html[data-theme="amplify"] .panel, html[data-theme="amplify"] .tile,
+html[data-theme="amplify"] .scn-card, html[data-theme="amplify"] .metric, html[data-theme="amplify"] .region,
+html[data-theme="amplify"] .quote, html[data-theme="amplify"] .modal, html[data-theme="amplify"] .menu {
+  background: var(--card); border-color: var(--line); box-shadow: none; border-radius: 0;
+}
+
+/* buttons */
+html[data-theme="amplify"] .btn { border-radius: 3px; }
+html[data-theme="amplify"] .btn-primary { background: #1a8fd8; color: #fff; }
+html[data-theme="amplify"] .btn-outline { background: var(--field); border-color: var(--line-2); color: var(--text); }
+html[data-theme="amplify"] #t-fw { background: #ffb21e; border-color: #ffb21e; color: #fff; font-weight: 700; }
+html[data-theme="amplify"] #t-fw:hover { background: #ffc040; }
+
+/* tab strips: blue block on the active tab, grey-blue uppercase for the rest */
+html[data-theme="amplify"] .seg { background: transparent; border-radius: 0; padding: 0; gap: 2px; }
+html[data-theme="amplify"] .seg button { border-radius: 0; text-transform: uppercase; font-weight: 700; font-size: 12px; letter-spacing: .03em; color: var(--text-3); }
+html[data-theme="amplify"] .seg button.on { color: #fff; }
+html[data-theme="amplify"] .seg .pill { display: none; }
+html[data-theme="amplify"] .seg button.on { background: #1a8fd8; }
+html[data-theme="amplify"] .seg.buysell button.on[data-v="1"] { background: var(--up); }
+html[data-theme="amplify"] .seg.buysell button.on[data-v="-1"] { background: var(--down); }
+
+/* trading floor */
+html[data-theme="amplify"] .term-top { background: #0a1a29; border-bottom: 1px solid var(--line); }
+html[data-theme="amplify"] .term-grid { gap: 4px; }
+html[data-theme="amplify"] .p-h { background: #0d2134; border-bottom: 1px solid var(--line); }
+html[data-theme="amplify"] .p-h > b { text-transform: uppercase; font-size: 13px; letter-spacing: .03em; }
+html[data-theme="amplify"] .tbl th, html[data-theme="amplify"] .book .tbl th { text-transform: uppercase; font-size: 10.5px; letter-spacing: .03em; color: var(--text-2); }
+html[data-theme="amplify"] .w-row { border-radius: 0; border-bottom: 1px solid var(--line); background: transparent !important; }
+html[data-theme="amplify"] .w-row:nth-child(even) { background: rgba(255,255,255,.025) !important; }
+html[data-theme="amplify"] .w-row.sel { background: var(--active) !important; box-shadow: inset 3px 0 0 #1e9be9; }
+html[data-theme="amplify"] .n-item { background: var(--card-2); border-radius: 0; }
+html[data-theme="amplify"] .tk-info { background: var(--field); border-radius: 0; }
+html[data-theme="amplify"] .tt-prog span { background: #fff; box-shadow: none; }
+html[data-theme="amplify"] .toggle::after { background: #fff; }
+html[data-theme="amplify"] .input, html[data-theme="amplify"] input, html[data-theme="amplify"] select, html[data-theme="amplify"] textarea {
+  background: var(--field); color: var(--text); border-color: var(--line-2); border-radius: 0;
+}
+
+/* settings preview tile */
+.mode-card .pv.amplify { background: #0f2335; }
+.mode-card .pv.amplify .s { background: #0a1a29; }
+.mode-card .pv.amplify .m { background: #122a3f; border: 1px solid #1e9be9; }

@@ -180,7 +180,7 @@
   };
 
   /* ------------------------------------------------------------ manager */
-  let theme = 'glass', wall = 'aurora', active = false, webgl = null;
+  let theme = 'amplify', wall = 'aurora', active = false, webgl = null;
   let wallCanvas = null, snap = null, pool = {}, mo = null, ro = null, queued = false, resizeT = null;
 
   function hasWebGL() {
@@ -303,7 +303,7 @@
   }
 
   function set(t, persist = true) {
-    theme = t === 'glass' ? 'glass' : 'light';
+    theme = ['glass', 'light', 'amplify'].includes(t) ? t : 'amplify';
     root.dataset.theme = theme;
     if (persist) try { localStorage.setItem(KEY, theme); } catch (e) {}
     if (theme === 'glass') enable(); else disable();
@@ -319,14 +319,14 @@
   function fromHash() {
     const q = new URLSearchParams(location.hash.split('?')[1] || '');
     if (q.get('wall')) setWallpaper(q.get('wall'), false);
-    if (q.get('theme') === 'glass' || q.get('theme') === 'light') set(q.get('theme'), false);
+    if (['glass', 'light', 'amplify'].includes(q.get('theme'))) set(q.get('theme'), false);
   }
 
   window.IrisTheme = {
     WALLPAPERS,
     get: () => theme,
     set,
-    toggle: () => set(theme === 'glass' ? 'light' : 'glass'),
+    toggle: () => set(theme === 'amplify' ? 'light' : 'amplify'),
     wallpaper: () => wall,
     setWallpaper,
     refresh: () => sync(true),
@@ -337,7 +337,7 @@
   /* ------------------------------------------------------------ boot */
   try {
     const sw = localStorage.getItem(WKEY); if (WALLPAPERS[sw]) wall = sw;
-    theme = localStorage.getItem(KEY) === 'light' ? 'light' : 'glass';   // Academy: glass by default
+    theme = ['glass', 'light', 'amplify'].includes(localStorage.getItem(KEY)) ? localStorage.getItem(KEY) : 'amplify';   // AmplifyME-style dark terminal by default
   } catch (e) {}
   set(theme, false);
   fromHash();

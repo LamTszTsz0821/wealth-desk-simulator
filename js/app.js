@@ -86,6 +86,7 @@ function openSettings() {
     <h2>Settings</h2>
     <div class="set-sec"><div class="eyebrow">Appearance</div>
       <div class="row" style="gap:14px;margin-top:10px">
+        <button class="mode-card ${th === 'amplify' ? 'on' : ''}" data-theme="amplify"><div class="pv amplify"><div class="s"></div><div class="m"></div></div>AmplifyME</button>
         <button class="mode-card ${th === 'glass' ? 'on' : ''}" data-theme="glass"><div class="pv glass"><div class="s"></div><div class="m"></div></div>Liquid Glass</button>
         <button class="mode-card ${th === 'light' ? 'on' : ''}" data-theme="light"><div class="pv light"><div class="s"></div><div class="m"></div></div>Light</button>
       </div>

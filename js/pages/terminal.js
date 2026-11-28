@@ -263,11 +263,11 @@ Pages.floor = (() => {
       const a = m.byId[sel];
       const trades = s.trades.filter(x => x.asset === sel).map(x => ({ x: x.step, kind: x.side > 0 ? 'buy' : 'sell' }));
       const p0 = m.price[sel][0], bl = benchLine(m, p0);
-      info = Charts.line(cv, { series: [{ data: m.price[sel], upto: t, color: Charts.css('--accent'), width: 1.8, fill: 'rgba(92,78,245,.14)', tag: v2 => Fmt.num(v2, a.dp) }, { data: bl, upto: t, color: Charts.css('--bench'), width: 1.3, dash: [4, 3] }], xMax: m.N - 1, now: t, yFmt: v2 => Fmt.num(v2, a.dp > 2 ? 2 : a.dp), xLabels: monthLabels(m.S), markers: [...news, ...trades], hover: hoverX != null ? { x: hoverX } : null });
+      info = Charts.line(cv, { series: [{ data: m.price[sel], upto: t, color: Charts.css('--price-line'), width: 1.8, fill: Charts.css('--price-fill'), tag: v2 => Fmt.num(v2, a.dp) }, { data: bl, upto: t, color: Charts.css('--bench'), width: 1.3, dash: [4, 3] }], xMax: m.N - 1, now: t, yFmt: v2 => Fmt.num(v2, a.dp > 2 ? 2 : a.dp), xLabels: monthLabels(m.S), markers: [...news, ...trades], hover: hoverX != null ? { x: hoverX } : null });
     } else {
       const nav = s.daily.nav.map(x => (x / s.capital - 1) * 100), bm = s.daily.bench.map(x => (x / s.capital - 1) * 100);
       nav.push((s.nav() / s.capital - 1) * 100); bm.push((m.bench[t] - 1) * 100);
-      info = Charts.line(cv, { series: [{ data: nav, color: Charts.css('--accent'), width: 2, fill: 'rgba(92,78,245,.12)', tag: v2 => v2.toFixed(2) + '%' }, { data: bm, color: Charts.css('--bench'), width: 1.5, dash: [4, 3], tag: v2 => v2.toFixed(2) + '%' }], xMax: m.days, now: t / m.S, yFmt: v2 => v2.toFixed(1) + '%', yInclude: [0], xLabels: monthLabels(1), markers: news, hover: hoverX != null ? { x: hoverX } : null });
+      info = Charts.line(cv, { series: [{ data: nav, color: Charts.css('--price-line'), width: 2, fill: Charts.css('--price-fill'), tag: v2 => v2.toFixed(2) + '%' }, { data: bm, color: Charts.css('--bench'), width: 1.5, dash: [4, 3], tag: v2 => v2.toFixed(2) + '%' }], xMax: m.days, now: t / m.S, yFmt: v2 => v2.toFixed(1) + '%', yInclude: [0], xLabels: monthLabels(1), markers: news, hover: hoverX != null ? { x: hoverX } : null });
     }
     const tip = $('#ch-tip');
     if (hoverX != null && info && info.i != null) {
