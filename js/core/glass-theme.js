@@ -22,7 +22,7 @@
    Demo flags (in the hash query): ?theme=glass|light  &wall=aurora|sunset|lagoon
    ========================================================================== */
 (function () {
-  const KEY = 'amsim.theme', WKEY = 'amsim.wallpaper';
+  const KEY = 'amsim.theme.v2', WKEY = 'amsim.wallpaper';
   const root = document.documentElement;
 
   /* ------------------------------------------------------------ wallpapers */
