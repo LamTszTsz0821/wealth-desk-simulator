@@ -4,6 +4,7 @@ Pages.home = (() => {
   // Real AmplifyME timing: 4 × 15-min quarters with 15-min rebalancing breaks. Shorter options keep the proportions.
   const LENS = { real: { q: 15, b: 15, label: 'Real · 4×15 min + 15-min breaks', short: 'Real (≈2 h)' }, half: { q: 7.5, b: 5, label: '4×7½ min + 5-min breaks', short: '≈55 min' }, practice: { q: 5, b: 3, label: '4×5 min + 3-min breaks', short: '≈32 min' }, quick: { q: 3, b: 1.5, label: '4×3 min + 1½-min breaks', short: '≈18 min' }, sprint: { q: 1.5, b: 1, label: '4×1½ min + 1-min breaks', short: '≈10 min' } };
   if (!LENS[st.len]) st.len = 'practice';
+  if (!st.players) st.players = 'solo';
   function save() { Store.set('lobby', st); }
 
   function render(v) {
@@ -64,6 +65,8 @@ Pages.home = (() => {
         <div class="step-h"><span class="num-badge">3</span><h2>Session settings</h2></div>
         <div class="card settings-card">
           <div class="set-grid">
+            <div><div class="lbl">Players</div>${seg('s-players', [['solo', 'Solo'], ['team', 'Host a team room'], ['join', 'Join a team room']], st.players)}
+              <p class="faint sm" id="players-help"></p></div>
             <div><div class="lbl">Mode</div>${seg('s-mode', [['exam', 'Exam: like the real thing'], ['training', 'Training']], st.mode)}
               <p class="faint sm" id="mode-help"></p></div>
             <div><div class="lbl">Session length</div>${seg('s-len', Object.entries(LENS).map(([k, x]) => [k, x.short]), st.len)}
@@ -73,7 +76,6 @@ Pages.home = (() => {
           </div>
           <div class="start-row">
             <div class="faint sm">${icon('keyboard', 14)} Terminal shortcuts: <span class="kbd">B</span> buy <span class="kbd">S</span> sell <span class="kbd">Q</span> quantity <span class="kbd">Enter</span> send <span class="kbd">W</span> Fund Weighting <span class="kbd">1</span>–<span class="kbd">0</span> select instrument</div>
-            <a class="btn btn-outline lg" href="#/join">${icon('users', 18)} Join a team room</a>
             <button class="btn btn-primary lg" id="go">Go to briefing ${icon('arrowRight', 18)}</button>
           </div>
         </div>
@@ -90,15 +92,22 @@ Pages.home = (() => {
     v.querySelectorAll('[data-fund]').forEach(b => (b.onclick = () => { st.fund = b.dataset.fund; st.scn = allScenarios().find(s => s.fund === st.fund).id; save(); render(v); }));
     v.querySelectorAll('[data-scn]').forEach(b => (b.onclick = () => { st.scn = b.dataset.scn; save(); v.querySelectorAll('[data-scn]').forEach(x => x.classList.toggle('sel', x === b)); }));
     const help = () => ($('#mode-help').innerHTML = st.mode === 'exam' ? 'No pause, real speed, no hints. Mistakes go straight through, just like the live event.' : 'Pause, speed control, skip breaks, "Execute plan" in one click, warnings before you break a rule or the stop-loss, and a "Why it matters" note on each headline.');
+    const ph = () => {
+      $('#players-help').innerHTML = st.players === 'team' ? 'You host one shared fund for the team. After the briefing, your trading floor opens a room and shows a 6-digit code to send your teammates. Keep your tab open: it runs the clock.'
+        : st.players === 'join' ? 'Your teammate hosts and picks the scenario, mode and length. Click Join and enter their 6-digit code.' : 'Practise on your own.';
+      $('#go').innerHTML = st.players === 'join' ? `Join a team room ${icon('arrowRight', 18)}` : `Go to briefing ${icon('arrowRight', 18)}`;
+    };
+    segWire($('#s-players'), x => { st.players = x; save(); ph(); }); ph();
     segWire($('#s-mode'), x => { st.mode = x; save(); help(); }); help();
     const lh = () => ($('#len-help').textContent = LENS[st.len].label + (st.len === 'real' ? ' (the real competition timing)' : ', same year, compressed'));
     segWire($('#s-len'), x => { st.len = x; save(); lh(); }); lh();
     segWire($('#s-brief'), x => { st.brief = +x; save(); });
     $('#go').onclick = () => {
+      if (st.players === 'join') { location.hash = '#/join'; return; }
       let scenarioId = st.scn;
       if (st.scn === 'random') scenarioId = `rnd-${st.fund}-${Math.floor(Math.random() * 1e9)}`;
       const L = LENS[st.len];
-      App.pending = { scenarioId, mode: st.mode, quarterMin: L.q, breakMin: L.b, buildMin: L.b, briefMin: st.brief, briefStart: Date.now(), variant: 0 };
+      App.pending = { scenarioId, mode: st.mode, quarterMin: L.q, breakMin: L.b, buildMin: L.b, briefMin: st.brief, briefStart: Date.now(), variant: 0, team: st.players === 'team' };
       if (App.session && !App.session.finished) App.session = null;
       location.hash = '#/brief';
     };

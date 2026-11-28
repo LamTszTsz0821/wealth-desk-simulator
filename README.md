@@ -58,8 +58,8 @@ All of these are listed in the app under **Guide → What's a guess**.
 
 
 ## Team rooms (one shared fund)
-1. The host sets up a run as usual and goes to the **Trading floor**, then clicks **Team room → Host this run**.
-2. Share the 6-digit code or the link (`…/#/join/123456`). Teammates open the link, or click **Join a team room** on the Lobby and type the code.
+1. The host picks **Players → Host a team room** on the Lobby, sets up the run and goes through the briefing. The trading floor opens the room and shows the code. (You can also host mid-run with the **Team room** button.)
+2. Share the 6-digit code or the link (`…/#/join/123456`). Teammates open the link, or pick **Players → Join a team room** on the Lobby and type the code.
 3. Everyone sees the same prices, news, clock and portfolio. Anyone can trade; every order goes into the one shared fund. Pause, skip and End (training) also apply to everyone.
 4. Keep the host's tab open (it runs the clock). If the host drops, the Team room button shows "host offline" and any teammate can **Take over as host** with no loss of state.
 

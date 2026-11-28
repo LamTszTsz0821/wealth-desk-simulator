@@ -152,6 +152,7 @@ Pages.brief = (() => {
     const P = App.pending;
     const sess = new Session({ scenario: P.scenario, scenarioId: P.scenarioId, mode: P.mode, quarterMin: P.quarterMin, breakMin: P.breakMin, buildMin: P.buildMin, variant: P.variant });
     sess.strategy = Object.assign({}, s.w);
+    sess.teamHost = !!P.team;
     App.session = sess;
     location.hash = '#/floor';
   }
